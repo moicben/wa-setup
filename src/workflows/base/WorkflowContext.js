@@ -1,0 +1,457 @@
+/**
+ * Contexte de workflow partagé entre toutes les étapes
+ * Contient les données, services et état du workflow
+ */
+
+class WorkflowContext {
+    constructor(config = {}) {
+        // Configuration
+        this.config = {
+            country: config.country || 'UK',
+            deviceId: config.deviceId || '127.0.0.1:5585',
+            smsApiKey: config.smsApiKey || process.env.SMS_ACTIVATE_API_KEY,
+            verbose: config.verbose !== false,
+            maxRetries: config.maxRetries || 3,
+            ...config
+        };
+
+        // Services injectés
+        this.bluestack = null;
+        this.sms = null;
+
+        // État du workflow
+        this.session = {
+            startTime: Date.now(),
+            country: this.config.country,
+            phone: null,
+            smsId: null,
+            parsedNumber: null,
+            attempt: 1,
+            maxRetries: this.config.maxRetries
+        };
+
+        // Résultats des étapes
+        this.stepResults = new Map();
+        this.executedSteps = new Set();
+
+        // Métriques et logs
+        this.metrics = {
+            totalDuration: 0,
+            stepDurations: {},
+            errors: [],
+            screenshots: []
+        };
+    }
+
+    /**
+     * Injecter les services nécessaires
+     */
+    setServices(bluestack, sms) {
+        this.bluestack = bluestack;
+        this.sms = sms;
+    }
+
+    /**
+     * Gestion des résultats d'étapes
+     */
+    setStepResult(stepName, result) {
+        this.stepResults.set(stepName, result);
+        this.executedSteps.add(stepName);
+    }
+
+    getStepResult(stepName) {
+        return this.stepResults.get(stepName);
+    }
+
+    hasStepResult(stepName) {
+        return this.stepResults.has(stepName);
+    }
+
+    getAllStepResults() {
+        return Object.fromEntries(this.stepResults);
+    }
+
+    /**
+     * Gestion de la session
+     */
+    updateSession(updates) {
+        this.session = { ...this.session, ...updates };
+    }
+
+    getSession() {
+        return { ...this.session };
+    }
+
+    /**
+     * Gestion des tentatives
+     */
+    incrementAttempt() {
+        this.session.attempt++;
+    }
+
+    getCurrentAttempt() {
+        return this.session.attempt;
+    }
+
+    getMaxRetries() {
+        return this.session.maxRetries;
+    }
+
+    isLastAttempt() {
+        return this.session.attempt >= this.session.maxRetries;
+    }
+
+    /**
+     * Gestion des métriques
+     */
+    recordStepDuration(stepName, duration) {
+        this.metrics.stepDurations[stepName] = duration;
+    }
+
+    recordError(stepName, error) {
+        this.metrics.errors.push({
+            step: stepName,
+            error: error.message,
+            timestamp: Date.now(),
+            attempt: this.session.attempt
+        });
+    }
+
+    recordScreenshot(filename, stepName = null) {
+        this.metrics.screenshots.push({
+            filename,
+            step: stepName,
+            timestamp: Date.now(),
+            attempt: this.session.attempt
+        });
+    }
+
+    /**
+     * Obtenir un résumé des métriques
+     */
+    getMetrics() {
+        const totalDuration = Date.now() - this.session.startTime;
+        return {
+            ...this.metrics,
+            totalDuration,
+            stepsExecuted: this.executedSteps.size,
+            currentAttempt: this.session.attempt,
+            hasErrors: this.metrics.errors.length > 0
+        };
+    }
+
+    /**
+     * Utilitaires pour les données du workflow
+     */
+
+    // Obtenir le numéro de téléphone
+    getPhoneNumber() {
+        return this.session.phone;
+    }
+
+    // Obtenir le numéro parsé
+    getParsedNumber() {
+        return this.session.parsedNumber;
+    }
+
+    // Obtenir l'ID SMS
+    getSMSId() {
+        return this.session.smsId;
+    }
+
+    // Obtenir le pays utilisé
+    getCountry() {
+        return this.session.country;
+    }
+
+    /**
+     * Méthodes de convenance pour les services
+     */
+
+    // BlueStack raccourcis
+    async takeScreenshot(filename) {
+        const screenshotPath = await this.bluestack.takeScreenshot(filename);
+        this.recordScreenshot(filename);
+        return screenshotPath;
+    }
+
+    async click(x, y) {
+        return await this.bluestack.click(x, y);
+    }
+
+    async inputText(text) {
+        return await this.bluestack.inputText(text);
+    }
+
+    async wait(delayNameOrMs) {
+        return await this.bluestack.wait(delayNameOrMs);
+    }
+
+    // SMS raccourcis
+    async buyNumber(country) {
+        return await this.sms.buyNumberWithFallbackAndPricing(country);
+    }
+
+    async waitForSMS(smsId) {
+        return await this.sms.waitForSMS(smsId);
+    }
+
+    async cancelSMS(smsId) {
+        return await this.sms.cancelNumber(smsId);
+    }
+
+    /**
+     * Gestion d'état pour retry/recovery
+     */
+    shouldRetry(error) {
+        const retryableErrors = [
+            'SMS_NOT_AVAILABLE_RETRY_NEEDED',
+            'SMS_SENDING_FAILED_RETRY_NEEDED'
+        ];
+        
+        return retryableErrors.includes(error.message) && !this.isLastAttempt();
+    }
+
+    /**
+     * Nettoyage des ressources
+     */
+    async cleanup() {
+        try {
+            // Nettoyage des ressources cloud en premier
+            await this.cleanupCloudResources();
+            
+            // Annuler le SMS si nécessaire
+            if (this.session.smsId) {
+                try {
+                    await this.cancelSMS(this.session.smsId);
+                    console.log('🗑️ SMS annulé lors du nettoyage');
+                } catch (e) {
+                    console.warn('⚠️ Impossible d\'annuler le SMS lors du nettoyage');
+                }
+            }
+        } catch (error) {
+            console.warn(`⚠️ Erreur nettoyage contexte: ${error.message}`);
+        }
+    }
+
+    /**
+     * Réinitialiser pour une nouvelle tentative
+     */
+    resetForRetry() {
+        // Garder la configuration et les services
+        // Réinitialiser l'état de session spécifique
+        this.session.phone = null;
+        this.session.smsId = null;
+        this.session.parsedNumber = null;
+        
+        // Nettoyer les résultats d'étapes
+        this.stepResults.clear();
+        this.executedSteps.clear();
+        
+        // Incrémenter la tentative
+        this.incrementAttempt();
+    }
+
+    /**
+     * Créer un résumé du résultat final
+     */
+    createResult(success, additionalData = {}) {
+        const duration = Math.round((Date.now() - this.session.startTime) / 1000);
+        
+        return {
+            success,
+            phone: this.session.phone,
+            duration,
+            country: this.session.country,
+            parsed: this.session.parsedNumber,
+            attempts: this.session.attempt,
+            metrics: this.getMetrics(),
+            ...additionalData
+        };
+    }
+
+    /**
+     * Debug et logging
+     */
+    logState() {
+        console.log('\n📊 État du contexte:');
+        console.log(`  🌍 Pays: ${this.session.country}`);
+        console.log(`  📱 Téléphone: ${this.session.phone || 'N/A'}`);
+        console.log(`  🆔 SMS ID: ${this.session.smsId || 'N/A'}`);
+        console.log(`  🔄 Tentative: ${this.session.attempt}/${this.session.maxRetries}`);
+        console.log(`  ✅ Étapes: ${this.executedSteps.size}`);
+        console.log(`  ⚠️ Erreurs: ${this.metrics.errors.length}`);
+    }
+
+    /**
+     * Support cloud MoreLogin - Gestion des allocations cloud
+     */
+    setCloudAllocations(allocations) {
+        if (!this.session.cloud) {
+            this.session.cloud = {};
+        }
+        
+        this.session.cloud = { ...this.session.cloud, ...allocations };
+    }
+
+    getCloudAllocations() {
+        return this.session.cloud || {};
+    }
+
+    hasCloudAllocations() {
+        return this.session.cloud && Object.keys(this.session.cloud).length > 0;
+    }
+
+    /**
+     * Support cloud MoreLogin - Configuration ADB cloud
+     */
+    updateADBConfig(cloudADBConfig) {
+        if (!this.config.cloud) {
+            this.config.cloud = {};
+        }
+        
+        this.config.cloud.adb = cloudADBConfig;
+        
+        // Mettre à jour le deviceId principal si nécessaire
+        if (cloudADBConfig.deviceId) {
+            this.config.deviceId = cloudADBConfig.deviceId;
+        }
+    }
+
+    getADBConfig() {
+        return this.config.cloud?.adb || {
+            deviceId: this.config.deviceId,
+            host: 'localhost',
+            port: 5555,
+            tunnel: false
+        };
+    }
+
+    /**
+     * Support cloud MoreLogin - Configuration proxy
+     */
+    updateProxyConfig(proxyConfig) {
+        if (!this.config.cloud) {
+            this.config.cloud = {};
+        }
+        
+        this.config.cloud.proxy = proxyConfig;
+    }
+
+    getProxyConfig() {
+        return this.config.cloud?.proxy || null;
+    }
+
+    hasProxyConfig() {
+        return this.config.cloud?.proxy !== null;
+    }
+
+    /**
+     * Support cloud MoreLogin - Configuration profil
+     */
+    updateProfileConfig(profileConfig) {
+        if (!this.config.cloud) {
+            this.config.cloud = {};
+        }
+        
+        this.config.cloud.profile = profileConfig;
+    }
+
+    getProfileConfig() {
+        return this.config.cloud?.profile || null;
+    }
+
+    hasProfileConfig() {
+        return this.config.cloud?.profile !== null;
+    }
+
+    /**
+     * Support cloud MoreLogin - Méthodes utilitaires cloud
+     */
+    isCloudMode() {
+        return this.hasCloudAllocations() || this.hasProxyConfig() || this.hasProfileConfig();
+    }
+
+    getCloudMetrics() {
+        const metrics = {
+            cloudMode: this.isCloudMode(),
+            allocations: this.getCloudAllocations(),
+            configurations: {}
+        };
+
+        if (this.hasProxyConfig()) {
+            const proxyConfig = this.getProxyConfig();
+            metrics.configurations.proxy = {
+                country: proxyConfig ? proxyConfig.country : 'UNKNOWN',
+                configured: true
+            };
+        }
+
+        if (this.hasProfileConfig()) {
+            const profileConfig = this.getProfileConfig();
+            metrics.configurations.profile = {
+                profileId: profileConfig ? profileConfig.profileId : 'UNKNOWN',
+                accountId: profileConfig ? profileConfig.accountId : 'UNKNOWN',
+                isolated: profileConfig ? profileConfig.isolated : false
+            };
+        }
+
+        return metrics;
+    }
+
+    /**
+     * Support cloud MoreLogin - Nettoyage cloud
+     */
+    async cleanupCloudResources() {
+        try {
+            if (this.isCloudMode()) {
+                console.log('🧹 Nettoyage ressources cloud...');
+                
+                // Les ressources cloud seront nettoyées par le MoreLoginStep
+                // Ici on nettoie juste les références
+                if (this.config.cloud) {
+                    delete this.config.cloud;
+                }
+                
+                if (this.session.cloud) {
+                    delete this.session.cloud;
+                }
+                
+                console.log('✅ Références cloud nettoyées');
+            }
+        } catch (error) {
+            console.warn(`⚠️ Erreur nettoyage cloud: ${error.message}`);
+        }
+    }
+
+    /**
+     * Validation du contexte
+     */
+    validate() {
+        if (!this.bluestack) {
+            throw new Error('Service BlueStack non configuré dans le contexte');
+        }
+        if (!this.sms) {
+            throw new Error('Service SMS non configuré dans le contexte');
+        }
+        if (!this.config.smsApiKey) {
+            throw new Error('Clé API SMS non configurée');
+        }
+        
+        // Validation cloud si en mode cloud
+        if (this.isCloudMode()) {
+            if (!this.config.cloud) {
+                throw new Error('Configuration cloud manquante en mode cloud');
+            }
+            
+            if (this.hasProxyConfig()) {
+                const proxyConfig = this.getProxyConfig();
+                if (!proxyConfig.host || !proxyConfig.port) {
+                    throw new Error('Configuration proxy cloud incomplète');
+                }
+            }
+        }
+    }
+}
+
+module.exports = { WorkflowContext }; 

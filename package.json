@@ -1,0 +1,41 @@
+{
+  "name": "wa-setup",
+  "version": "1.0.0",
+  "description": "WhatsApp Account Creation - Version Minimale",
+  "main": "src/workflow.js",
+  "scripts": {
+    "start": "node src/workflow.js UK",
+    "create-uk": "node src/workflow.js UK",
+    "create-fr": "node src/workflow.js FR",
+    "create-us": "node src/workflow.js US",
+    "setup": "node setup-sms-api.js",
+    "test": "node test-workflow.js",
+    "test-parsing": "node test-phone-parsing.js",
+    "test-ocr": "node test-ocr.js",
+    "test-uk-pricing": "node test-uk-pricing.js",
+    "clean": "rm -rf screenshots/*.png temp/* logs/*"
+  },
+  "keywords": [
+    "whatsapp",
+    "automation",
+    "bluestack",
+    "sms"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.7",
+    "tesseract.js": "^5.1.1",
+    "@supabase/supabase-js": "^2.45.4",
+    "axios": "^1.6.0",
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "."
+  }
+}
