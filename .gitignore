@@ -95,3 +95,7 @@ out/
 # Documentation PDF (sauf celui fourni)
 *.pdf
 !morelogin-encrypt-key.pdf
+
+
+# Claude Caude Config
+.claude

@@ -12,22 +12,14 @@ const { CleanupHelper, installExitHooks } = require('./utils/cleanup-helper');
  * Fonction principale pour usage CLI
  */
 async function main() {
-    let workflow = null;
-    
     try {
         const country = process.argv[2] || 'UK';
         
         console.log('🚀 Workflow WhatsApp Refactorisé');
         console.log('═'.repeat(50));
         
-        // Installer les hooks de nettoyage automatique
-        installExitHooks();
-        
-        // Logger le statut du nettoyage global
-        CleanupHelper.logCleanupStatus();
-        
         // Créer le workflow via la factory
-        workflow = WorkflowFactory.createForCountry(country);
+        const workflow = WorkflowFactory.createForCountry(country);
         
         // Initialiser le workflow
         await workflow.initialize();
@@ -43,15 +35,6 @@ async function main() {
             console.log(`   - Pays: ${result.country}`);
             console.log(`   - Numéro: ${result.phone}`);
             console.log(`   - Nom: ${result.accountName}`);
-            
-            // Nettoyage global en fin de workflow réussi
-            if (workflow && workflow.context) {
-                try {
-                    await CleanupHelper.onWorkflowEnd(workflow.context, result);
-                } catch (cleanupError) {
-                    console.warn(`⚠️ Nettoyage global échoué: ${cleanupError.message}`);
-                }
-            }
             
             process.exit(0);
         } else {
@@ -69,15 +52,6 @@ async function main() {
                 });
             }
             
-            // Nettoyage global en cas d'erreur
-            if (workflow && workflow.context) {
-                try {
-                    await CleanupHelper.onWorkflowError(workflow.context, new Error(result.error || 'Workflow failed'));
-                } catch (cleanupError) {
-                    console.warn(`⚠️ Nettoyage global d'erreur échoué: ${cleanupError.message}`);
-                }
-            }
-            
             process.exit(1);
         }
 
@@ -85,16 +59,6 @@ async function main() {
         console.error(`💥 Erreur fatale: ${error.message}`);
         console.error('🔍 Stack trace:');
         console.error(error.stack);
-        
-        // Nettoyage global en cas d'erreur fatale
-        if (workflow && workflow.context) {
-            try {
-                await CleanupHelper.onWorkflowError(workflow.context, error);
-            } catch (cleanupError) {
-                console.warn(`⚠️ Nettoyage global d'erreur fatale échoué: ${cleanupError.message}`);
-            }
-        }
-        
         process.exit(1);
     }
 }

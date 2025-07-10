@@ -248,28 +248,18 @@ class WorkflowContext {
     /**
      * Nettoyage des ressources
      */
-    async cleanup(options = {}) {
+    async cleanup() {
         try {
             // Nettoyage des ressources cloud en premier
             await this.cleanupCloudResources();
             
-            // Annuler le SMS actuel si nécessaire (ancien comportement)
-            if (this.session.smsId && !options.skipIndividualSMSCancel) {
+            // Annuler le SMS si nécessaire
+            if (this.session.smsId) {
                 try {
                     await this.cancelSMS(this.session.smsId);
-                    console.log('🗑️ SMS actuel annulé lors du nettoyage');
+                    console.log('🗑️ SMS annulé lors du nettoyage');
                 } catch (e) {
-                    console.warn('⚠️ Impossible d\'annuler le SMS actuel lors du nettoyage');
-                }
-            }
-
-            // Nettoyage global SMS optionnel
-            if (options.globalSMSCleanup || process.env.ENABLE_GLOBAL_SMS_CLEANUP === 'true') {
-                try {
-                    await this.globalSMSCleanup(options.globalSMSCleanupOptions || {});
-                } catch (error) {
-                    console.warn(`⚠️ Erreur nettoyage global SMS: ${error.message}`);
-                    // Ne pas faire échouer le nettoyage pour cette erreur
+                    console.warn('⚠️ Impossible d\'annuler le SMS lors du nettoyage');
                 }
             }
         } catch (error) {

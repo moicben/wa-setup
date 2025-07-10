@@ -9,10 +9,10 @@
     "create-fr": "node src/workflow.js FR",
     "create-us": "node src/workflow.js US",
     "setup": "node setup-sms-api.js",
-    "test": "node test-workflow.js",
-    "test-parsing": "node test-phone-parsing.js",
-    "test-ocr": "node test-ocr.js",
-    "test-uk-pricing": "node test-uk-pricing.js",
+    "test": "node tests/test-workflow.js",
+    "test-services": "node tests/test-services-unified.js",
+    "db-test": "node tests/test-supabase-integration.js",
+    "db-tables": "node tests/test-supabase-tables.js",
     "clean": "rm -rf screenshots/*.png temp/* logs/*"
   },
   "keywords": [
@@ -24,11 +24,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.0.3",
-    "node-fetch": "^2.6.7",
-    "tesseract.js": "^5.1.1",
     "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.6.0",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.7",
+    "pg": "^8.16.3",
+    "tesseract.js": "^5.1.1",
     "ws": "^8.14.2"
   },
   "engines": {

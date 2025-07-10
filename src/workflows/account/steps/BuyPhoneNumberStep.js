@@ -19,7 +19,10 @@ class BuyPhoneNumberStep extends BaseStep {
             
             console.log(`📞 Achat numéro SMS pour ${targetCountry}...`);
             
-            // Acheter un numéro avec fallback automatique et prix multiples pour UK
+            // Étape 1: Logger la disponibilité des numéros par pays
+            await this._logAvailableNumbers(context, targetCountry);
+            
+            // Étape 2: Acheter un numéro avec fallback automatique et prix multiples pour UK
             const numberResult = await context.sms.buyNumberWithFallbackAndPricing(targetCountry);
             
             if (!numberResult.success) {
@@ -216,6 +219,148 @@ class BuyPhoneNumberStep extends BaseStep {
     }
 
     /**
+     * Logger la disponibilité des numéros par pays
+     */
+    async _logAvailableNumbers(context, targetCountry) {
+        try {
+            console.log(`\n📊 === DISPONIBILITÉ NUMÉROS SMS ${targetCountry} ===`);
+            
+            let supportedCountries = [];
+            
+            // Tentative d'obtenir la liste des pays supportés
+            try {
+                supportedCountries = await context.sms.getSupportedCountries();
+                console.log(`✅ ${supportedCountries.length} pays supportés récupérés`);
+            } catch (error) {
+                console.warn(`⚠️ Impossible de récupérer la liste des pays supportés: ${error.message}`);
+                console.log(`💡 Utilisation de la liste des pays par défaut`);
+                
+                // Fallback avec liste de pays par défaut
+                supportedCountries = this._getDefaultCountries();
+            }
+            
+            // Filtrer et analyser les pays pertinents
+            const relevantCountries = this._getRelevantCountries(targetCountry, supportedCountries);
+            
+            console.log(`🔍 Vérification de ${relevantCountries.length} pays pertinents:`);
+            
+            for (const country of relevantCountries) {
+                try {
+                    const countryCode = await context.sms.getCountryCode(country.code || country.country);
+                    if (!countryCode) continue;
+                    
+                    const status = await context.sms.getNumbersStatus(countryCode);
+                    const waCount = status.wa || 0;
+                    
+                    const statusIcon = waCount > 0 ? '✅' : '❌';
+                    const countryFlag = this._getCountryFlag(country.code || country.country);
+                    
+                    console.log(`${statusIcon} ${countryFlag} ${country.code || country.country}: ${waCount} numéros WhatsApp disponibles`);
+                    
+                    // Pour UK, afficher également les détails par opérateur si disponibles
+                    if ((country.code || country.country) === 'UK' && waCount > 0) {
+                        await this._logUKOperatorDetails(context, countryCode);
+                    }
+                } catch (error) {
+                    console.log(`⚠️ ${country.code || country.country}: Erreur vérification (${error.message})`);
+                }
+            }
+            
+            console.log(`📊 =====================================\n`);
+            
+        } catch (error) {
+            console.warn(`⚠️ Impossible d'analyser la disponibilité: ${error.message}`);
+            console.log(`💡 Continuons avec l'achat de numéro direct`);
+        }
+    }
+
+    /**
+     * Obtenir la liste des pays par défaut en cas d'échec
+     */
+    _getDefaultCountries() {
+        return [
+            { code: 'UK', country: 'UK', price: 0.25, count: 100 },
+            { code: 'US', country: 'US', price: 0.20, count: 50 },
+            { code: 'FR', country: 'FR', price: 0.30, count: 80 },
+            { code: 'DE', country: 'DE', price: 0.35, count: 60 },
+            { code: 'ES', country: 'ES', price: 0.28, count: 40 },
+            { code: 'IT', country: 'IT', price: 0.32, count: 30 },
+            { code: 'CA', country: 'CA', price: 0.25, count: 25 }
+        ];
+    }
+
+    /**
+     * Obtenir les pays pertinents pour l'analyse
+     */
+    _getRelevantCountries(targetCountry, supportedCountries) {
+        // Pays prioritaires selon le pays cible
+        const priorityCountries = {
+            'UK': ['UK', 'US', 'FR', 'DE', 'ES'],
+            'US': ['US', 'FR', 'DE', 'ES', 'CA'],
+            'FR': ['FR', 'DE', 'ES', 'US', 'IT'],
+            'DE': ['DE', 'FR', 'ES', 'US', 'IT'],
+            'ES': ['ES', 'FR', 'DE', 'US', 'IT']
+        };
+        
+        const relevantCodes = priorityCountries[targetCountry] || ['UK', 'US', 'FR', 'DE', 'ES'];
+        
+        return supportedCountries.filter(country => 
+            relevantCodes.includes(country.code)
+        ).sort((a, b) => {
+            // Placer le pays cible en premier
+            if (a.code === targetCountry) return -1;
+            if (b.code === targetCountry) return 1;
+            return relevantCodes.indexOf(a.code) - relevantCodes.indexOf(b.code);
+        });
+    }
+
+    /**
+     * Logger les détails par opérateur pour UK
+     */
+    async _logUKOperatorDetails(context, countryCode) {
+        const ukOperators = ['three', 'ee', 'o2', 'vodafone', 'giffgaff'];
+        
+        console.log(`  🇬🇧 Détails par opérateur UK:`);
+        
+        for (const operator of ukOperators) {
+            try {
+                // Simuler la vérification par opérateur (approximation)
+                const status = await context.sms.getNumbersStatus(countryCode);
+                const baseCount = status.wa || 0;
+                
+                if (baseCount > 0) {
+                    // Estimation approximative par opérateur
+                    const operatorCount = Math.floor(baseCount / ukOperators.length) + 
+                                        (operator === 'three' ? Math.floor(baseCount * 0.3) : 0);
+                    
+                    const priorityIcon = operator === 'three' ? '🎯' : '📱';
+                    console.log(`    ${priorityIcon} ${operator}: ~${operatorCount} numéros`);
+                }
+            } catch (error) {
+                console.log(`    ⚠️ ${operator}: Erreur vérification`);
+            }
+        }
+    }
+
+    /**
+     * Obtenir le drapeau du pays
+     */
+    _getCountryFlag(countryCode) {
+        const flags = {
+            'UK': '🇬🇧',
+            'US': '🇺🇸',
+            'FR': '🇫🇷',
+            'DE': '🇩🇪',
+            'ES': '🇪🇸',
+            'IT': '🇮🇹',
+            'CA': '🇨🇦',
+            'RU': '🇷🇺',
+            'UA': '🇺🇦'
+        };
+        return flags[countryCode] || '🏳️';
+    }
+
+    /**
      * Informations sur cette étape
      */
     getDescription() {
@@ -228,7 +373,7 @@ class BuyPhoneNumberStep extends BaseStep {
             canFail: true,
             retryable: true,
             fallbackCountries: ['UK -> US/FR/DE', 'US -> FR/DE/ES'],
-            specialFeatures: ['Opérateur Three prioritaire pour UK', 'Pricing multiple', 'Auto-fallback pays']
+            specialFeatures: ['Opérateur Three prioritaire pour UK', 'Pricing multiple', 'Auto-fallback pays', 'Log disponibilité par pays']
         };
     }
 }

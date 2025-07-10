@@ -85,16 +85,6 @@ async function main() {
         console.error(`💥 Erreur fatale: ${error.message}`);
         console.error('🔍 Stack trace:');
         console.error(error.stack);
-        
-        // Nettoyage global en cas d'erreur fatale
-        if (workflow && workflow.context) {
-            try {
-                await CleanupHelper.onWorkflowError(workflow.context, error);
-            } catch (cleanupError) {
-                console.warn(`⚠️ Nettoyage global d'erreur fatale échoué: ${cleanupError.message}`);
-            }
-        }
-        
         process.exit(1);
     }
 }

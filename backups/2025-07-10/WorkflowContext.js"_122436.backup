@@ -248,28 +248,18 @@ class WorkflowContext {
     /**
      * Nettoyage des ressources
      */
-    async cleanup(options = {}) {
+    async cleanup() {
         try {
             // Nettoyage des ressources cloud en premier
             await this.cleanupCloudResources();
             
-            // Annuler le SMS actuel si nécessaire (ancien comportement)
-            if (this.session.smsId && !options.skipIndividualSMSCancel) {
+            // Annuler le SMS si nécessaire
+            if (this.session.smsId) {
                 try {
                     await this.cancelSMS(this.session.smsId);
-                    console.log('🗑️ SMS actuel annulé lors du nettoyage');
+                    console.log('🗑️ SMS annulé lors du nettoyage');
                 } catch (e) {
-                    console.warn('⚠️ Impossible d\'annuler le SMS actuel lors du nettoyage');
-                }
-            }
-
-            // Nettoyage global SMS optionnel
-            if (options.globalSMSCleanup || process.env.ENABLE_GLOBAL_SMS_CLEANUP === 'true') {
-                try {
-                    await this.globalSMSCleanup(options.globalSMSCleanupOptions || {});
-                } catch (error) {
-                    console.warn(`⚠️ Erreur nettoyage global SMS: ${error.message}`);
-                    // Ne pas faire échouer le nettoyage pour cette erreur
+                    console.warn('⚠️ Impossible d\'annuler le SMS lors du nettoyage');
                 }
             }
         } catch (error) {
@@ -464,109 +454,6 @@ class WorkflowContext {
             }
         } catch (error) {
             console.warn(`⚠️ Erreur nettoyage cloud: ${error.message}`);
-        }
-    }
-
-    /**
-     * Nettoyage global des numéros SMS actifs
-     * @param {Object} options - Options de nettoyage
-     * @returns {Promise<Object>} Résultats du nettoyage
-     */
-    async globalSMSCleanup(options = {}) {
-        const enableGlobalCleanup = options.enabled || 
-                                  process.env.ENABLE_GLOBAL_SMS_CLEANUP === 'true' || 
-                                  this.config.enableGlobalSMSCleanup || 
-                                  false;
-
-        if (!enableGlobalCleanup) {
-            console.log('💡 Nettoyage global SMS désactivé (configuré via options ou ENABLE_GLOBAL_SMS_CLEANUP)');
-            return {
-                success: true,
-                skipped: true,
-                reason: 'disabled'
-            };
-        }
-
-        if (!this.sms) {
-            console.warn('⚠️ Service SMS non disponible pour le nettoyage global');
-            return {
-                success: false,
-                skipped: true,
-                reason: 'no_sms_service'
-            };
-        }
-
-        console.log('🧹 === NETTOYAGE GLOBAL SMS ===');
-        
-        try {
-            // Vérifier si le provider supporte le nettoyage global
-            if (typeof this.sms.cancelAllActiveNumbers !== 'function') {
-                console.warn('⚠️ Provider SMS ne supporte pas le nettoyage global');
-                return {
-                    success: false,
-                    skipped: true,
-                    reason: 'not_supported'
-                };
-            }
-
-            // Options par défaut pour le nettoyage global
-            const cleanupOptions = {
-                maxConcurrent: 3, // Limiter la concurrence pour éviter la surcharge
-                ignoreErrors: true, // Toujours ignorer les erreurs pour le nettoyage global
-                onlyWhatsApp: true, // Ne nettoyer que les numéros WhatsApp
-                logProgress: true,
-                ...options
-            };
-
-            // Lancer le nettoyage global
-            const result = await this.sms.cancelAllActiveNumbers(cleanupOptions);
-
-            // Logger les résultats
-            if (result.success) {
-                if (result.total === 0) {
-                    console.log('✅ Nettoyage global terminé - aucun numéro à nettoyer');
-                } else {
-                    console.log(`✅ Nettoyage global terminé: ${result.cancelled}/${result.total} numéros annulés`);
-                    
-                    if (result.failed > 0) {
-                        console.warn(`⚠️ ${result.failed} échecs d'annulation (normal pour les numéros déjà utilisés)`);
-                    }
-                }
-            } else {
-                console.warn('⚠️ Nettoyage global partiellement échoué');
-            }
-
-            // Enregistrer les métriques
-            this.recordMetric('globalSMSCleanup', {
-                total: result.total,
-                cancelled: result.cancelled,
-                failed: result.failed,
-                errors: result.errors.length,
-                success: result.success
-            });
-
-            console.log('🧹 ===============================');
-            
-            return result;
-
-        } catch (error) {
-            console.error(`❌ Erreur nettoyage global SMS: ${error.message}`);
-            
-            // Enregistrer l'erreur mais ne pas faire échouer le workflow
-            this.recordMetric('globalSMSCleanupError', {
-                error: error.message,
-                timestamp: Date.now()
-            });
-
-            return {
-                success: false,
-                skipped: false,
-                error: error.message,
-                total: 0,
-                cancelled: 0,
-                failed: 0,
-                errors: [{ global: error.message }]
-            };
         }
     }
 
