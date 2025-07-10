@@ -4,8 +4,8 @@
  * Valide l'intégration du TranscriptManager avec les hooks Claude Code
  */
 
-const { getTranscriptManager } = require('./src/infrastructure/TranscriptManager');
-const { logToolFromHook, initSession, finalizeSession } = require('./src/infrastructure/transcript-integration');
+const { getTranscriptManager } = require('../src/infrastructure/TranscriptManager');
+const { logToolFromHook, initSession, finalizeSession } = require('../src/infrastructure/transcript-integration');
 
 console.log('🧪 Test du système de transcription complet');
 console.log('=====================================');

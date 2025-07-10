@@ -3,7 +3,7 @@
  * Vérifie que l'erreur "Cannot read properties of undefined (reading 'info')" est résolue
  */
 
-const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
+const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
 
 async function testWaitForSMSStepFix() {
     console.log('🧪 TEST CORRECTION WAITFORSMSSTEP');

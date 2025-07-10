@@ -4,8 +4,8 @@
  */
 
 require('dotenv').config();
-const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
-const { createSMSManager } = require('./src/services/sms');
+const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
+const { createSMSManager } = require('../src/services/sms');
 
 async function testSMSTimeoutFix() {
     console.log('🧪 TEST CORRECTION TIMEOUT SMS');

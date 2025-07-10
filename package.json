@@ -13,7 +13,9 @@
     "test-services": "node tests/test-services-unified.js",
     "db-test": "node tests/test-supabase-integration.js",
     "db-tables": "node tests/test-supabase-tables.js",
-    "clean": "rm -rf screenshots/*.png temp/* logs/*"
+    "clean": "rm -rf screenshots/*.png temp/* logs/*",
+    "whatsapp": "node scripts/launchWhatsApp.js",
+    "interactive": "node scripts/interactive-phone.js"
   },
   "keywords": [
     "whatsapp",

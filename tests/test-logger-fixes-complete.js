@@ -130,9 +130,9 @@ async function testLoggerFixesComplete() {
     console.log('\n📋 Test 5: Test instantiation des classes');
     
     test('Instantiation des classes corrigées', () => {
-        const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
-        const { FinalizeAccountStep } = require('./src/workflows/account/steps/FinalizeAccountStep'); 
-        const { InputSMSCodeStep } = require('./src/workflows/account/steps/InputSMSCodeStep');
+        const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
+        const { FinalizeAccountStep } = require('../src/workflows/account/steps/FinalizeAccountStep'); 
+        const { InputSMSCodeStep } = require('../src/workflows/account/steps/InputSMSCodeStep');
         
         const steps = [
             new WaitForSMSStep(),

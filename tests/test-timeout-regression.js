@@ -28,7 +28,7 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 1: Import des modules corrigés');
     
     await test('Import WaitForSMSStep', async () => {
-        const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
+        const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
         const step = new WaitForSMSStep();
         
         if (!step || !step.timeout) {
@@ -39,7 +39,7 @@ async function testTimeoutRegression() {
     });
 
     await test('Import SMS Service', async () => {
-        const { createSMSManager } = require('./src/services/sms');
+        const { createSMSManager } = require('../src/services/sms');
         const smsManager = await createSMSManager();
         
         if (!smsManager || !smsManager.waitForSMS) {
@@ -50,7 +50,7 @@ async function testTimeoutRegression() {
     });
 
     await test('Import SMS Provider', async () => {
-        const { SMSActivateProvider } = require('./src/services/sms/providers/SMSActivateProvider');
+        const { SMSActivateProvider } = require('../src/services/sms/providers/SMSActivateProvider');
         const provider = new SMSActivateProvider();
         
         if (!provider || !provider.waitForSMS) {
@@ -63,7 +63,7 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 2: Workflow Steps avec timeouts');
     
     await test('WaitForSMSStep timeout 2 minutes', async () => {
-        const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
+        const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
         const step = new WaitForSMSStep();
         
         if (step.timeout !== 120000) {
@@ -72,7 +72,7 @@ async function testTimeoutRegression() {
     });
 
     await test('FinalizeAccountStep importable', async () => {
-        const { FinalizeAccountStep } = require('./src/workflows/account/steps/FinalizeAccountStep');
+        const { FinalizeAccountStep } = require('../src/workflows/account/steps/FinalizeAccountStep');
         const step = new FinalizeAccountStep();
         
         if (!step || !step.name) {
@@ -83,7 +83,7 @@ async function testTimeoutRegression() {
     });
 
     await test('InputSMSCodeStep importable', async () => {
-        const { InputSMSCodeStep } = require('./src/workflows/account/steps/InputSMSCodeStep');
+        const { InputSMSCodeStep } = require('../src/workflows/account/steps/InputSMSCodeStep');
         const step = new InputSMSCodeStep();
         
         if (!step || !step.name) {
@@ -96,7 +96,7 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 3: WorkflowOrchestrator avec steps corrigés');
     
     await test('WhatsAppAccountWorkflow créable', async () => {
-        const { WhatsAppAccountWorkflow } = require('./src/workflows/WhatsAppAccountWorkflow');
+        const { WhatsAppAccountWorkflow } = require('../src/workflows/WhatsAppAccountWorkflow');
         const workflow = new WhatsAppAccountWorkflow({
             country: 'UK',
             verbose: false
@@ -112,7 +112,7 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 4: Simulation workflow timeout corrections');
     
     await test('WaitForSMSStep simulation', async () => {
-        const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
+        const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
         const step = new WaitForSMSStep();
         
         const mockContext = {
@@ -146,9 +146,9 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 5: Logging fonctionnel');
     
     await test('Logging console.* fonctionnel', async () => {
-        const { WaitForSMSStep } = require('./src/workflows/account/steps/WaitForSMSStep');
-        const { FinalizeAccountStep } = require('./src/workflows/account/steps/FinalizeAccountStep');
-        const { InputSMSCodeStep } = require('./src/workflows/account/steps/InputSMSCodeStep');
+        const { WaitForSMSStep } = require('../src/workflows/account/steps/WaitForSMSStep');
+        const { FinalizeAccountStep } = require('../src/workflows/account/steps/FinalizeAccountStep');
+        const { InputSMSCodeStep } = require('../src/workflows/account/steps/InputSMSCodeStep');
         
         const steps = [
             new WaitForSMSStep(),
@@ -174,7 +174,7 @@ async function testTimeoutRegression() {
     console.log('\n📋 Test 6: Configuration par défaut robuste');
     
     await test('SMS Manager defaults', async () => {
-        const { createSMSManager } = require('./src/services/sms');
+        const { createSMSManager } = require('../src/services/sms');
         const smsManager = await createSMSManager();
         
         // Test avec différents paramètres
