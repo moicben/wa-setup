@@ -1,6 +1,6 @@
 /**
- * Classe de base pour les étapes de workflow
- * Fournit la structure commune et les utilitaires partagés
+ * BaseStep - Classe de base pour toutes les étapes de workflow
+ * Version simplifiée récupérée après nettoyage
  */
 
 class BaseStep {
@@ -11,32 +11,44 @@ class BaseStep {
         this.result = null;
         this.startTime = null;
         this.endTime = null;
-        this.error = null;
     }
 
     /**
-     * Point d'entrée principal pour exécuter l'étape
+     * Exécuter l'étape avec gestion d'erreurs
      */
     async execute(context) {
         try {
             this.startTime = Date.now();
-            this.logStart();
             
-            // Vérifier les dépendances
-            this._checkDependencies(context);
+            // Vérifier les prérequis
+            if (this.canExecute && !(await this.canExecute(context))) {
+                throw new Error(`Prérequis non satisfaits pour l'étape: ${this.name}`);
+            }
+
+            console.log(`🔄 Exécution: ${this.name}...`);
             
-            // Exécuter l'étape spécifique (implémentée par les sous-classes)
+            // Exécuter l'étape
             this.result = await this._execute(context);
             
             this.executed = true;
             this.endTime = Date.now();
-            this.logSuccess();
+            
+            console.log(`✅ ${this.name} terminé (${this.endTime - this.startTime}ms)`);
             
             return this.result;
         } catch (error) {
-            this.error = error;
             this.endTime = Date.now();
-            this.logError(error);
+            console.error(`❌ Erreur dans ${this.name}: ${error.message}`);
+            
+            // Nettoyage si l'étape échoue
+            if (this.cleanup) {
+                try {
+                    await this.cleanup(context);
+                } catch (cleanupError) {
+                    console.warn(`⚠️ Erreur nettoyage ${this.name}: ${cleanupError.message}`);
+                }
+            }
+            
             throw error;
         }
     }
@@ -45,91 +57,60 @@ class BaseStep {
      * Méthode abstraite à implémenter par les sous-classes
      */
     async _execute(context) {
-        throw new Error(`Méthode _execute() doit être implémentée par ${this.constructor.name}`);
-    }
-
-    /**
-     * Vérifier que les dépendances sont satisfaites
-     */
-    _checkDependencies(context) {
-        for (const dependency of this.dependencies) {
-            if (!context.hasStepResult(dependency)) {
-                throw new Error(`Dépendance manquante: ${dependency} requis pour ${this.name}`);
-            }
-        }
+        throw new Error(`Méthode _execute non implémentée pour ${this.name}`);
     }
 
     /**
      * Obtenir le résultat d'une dépendance
      */
     _getDependencyResult(context, stepName) {
-        return context.getStepResult(stepName);
+        const result = context.getStepResult(stepName);
+        if (!result) {
+            throw new Error(`Résultat non trouvé pour l'étape dépendante: ${stepName}`);
+        }
+        return result;
     }
 
     /**
-     * Prendre un screenshot avec nom automatique
+     * Méthodes utilitaires pour les étapes
      */
     async _takeScreenshot(context, suffix = '') {
-        const filename = this._generateScreenshotName(suffix);
-        return await context.bluestack.takeScreenshot(filename);
+        if (context.bluestack && context.bluestack.takeScreenshot) {
+            const stepNumber = this._getStepNumber ? this._getStepNumber() : '00';
+            const filename = `${stepNumber}_${this.name.toLowerCase().replace(/\s+/g, '_')}${suffix ? '_' + suffix : ''}`;
+            return await context.bluestack.takeScreenshot(filename);
+        }
+        return null;
     }
 
-    /**
-     * Générer un nom de screenshot basé sur l'étape
-     */
-    _generateScreenshotName(suffix = '') {
-        const stepNumber = this._getStepNumber();
-        const baseName = this.name.toLowerCase().replace(/\s+/g, '_');
-        const suffixPart = suffix ? `_${suffix}` : '';
-        const attemptPart = this._getAttemptSuffix();
-        
-        return `${stepNumber}_${baseName}${suffixPart}${attemptPart}.png`;
+    async _click(context, x, y) {
+        if (context.bluestack && context.bluestack.click) {
+            await context.bluestack.click(x, y);
+        }
     }
 
-    /**
-     * Obtenir le numéro d'étape pour le screenshot
-     */
-    _getStepNumber() {
-        // Mapping des étapes vers leurs numéros (pour compatibilité avec l'ancien système)
-        const stepNumbers = {
-            'initialize_app': '01',
-            'buy_phone_number': '02',
-            'input_phone': '03',
-            'verify_sms': '04',
-            'request_sms': '05',
-            'analyze_post_sms': '06',
-            'wait_sms': '07',
-            'input_code': '08',
-            'finalize': '09'
+    async _input(context, text) {
+        if (context.bluestack && context.bluestack.input) {
+            await context.bluestack.input(text);
+        }
+    }
+
+    async _pressKey(context, keyCode) {
+        if (context.bluestack && context.bluestack.pressKey) {
+            await context.bluestack.pressKey(keyCode);
+        }
+    }
+
+    async _wait(context, duration = 'medium') {
+        const durations = {
+            short: 1000,
+            medium: 3000,
+            long: 5000,
+            extra: 10000
         };
         
-        const stepKey = this.name.toLowerCase().replace(/\s+/g, '_');
-        return stepNumbers[stepKey] || '00';
-    }
-
-    /**
-     * Obtenir le suffixe d'tentative pour les screenshots
-     */
-    _getAttemptSuffix() {
-        // Pourrait être fourni par le contexte si nécessaire
-        return '';
-    }
-
-    /**
-     * Logging des étapes
-     */
-    logStart() {
-        console.log(`\n${this.name}...`);
-    }
-
-    logSuccess() {
-        const duration = this.endTime - this.startTime;
-        console.log(`✅ ${this.name} terminé (${duration}ms)`);
-    }
-
-    logError(error) {
-        const duration = this.endTime - this.startTime;
-        console.error(`❌ ${this.name} échoué après ${duration}ms: ${error.message}`);
+        const ms = typeof duration === 'number' ? duration : durations[duration] || 3000;
+        await new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
@@ -140,59 +121,16 @@ class BaseStep {
             name: this.name,
             dependencies: this.dependencies,
             executed: this.executed,
-            duration: this.endTime ? (this.endTime - this.startTime) : null,
-            error: this.error?.message || null,
-            hasResult: this.result !== null
+            duration: this.endTime && this.startTime ? this.endTime - this.startTime : null
         };
     }
 
     /**
-     * Méthodes utilitaires communes
+     * Obtenir le numéro d'étape (à override)
      */
-
-    // Attendre un délai
-    async _wait(context, delayNameOrMs) {
-        return await context.bluestack.wait(delayNameOrMs);
-    }
-
-    // Cliquer
-    async _click(context, x, y) {
-        return await context.bluestack.click(x, y);
-    }
-
-    // Saisir du texte
-    async _inputText(context, text) {
-        return await context.bluestack.inputText(text);
-    }
-
-    // Appuyer sur une touche
-    async _pressKey(context, keyCode) {
-        return await context.bluestack.pressKey(keyCode);
-    }
-
-    // Effacer un champ
-    async _clearField(context, x, y) {
-        return await context.bluestack.clearField(x, y);
-    }
-
-    // Vérifier si l'étape peut être exécutée
-    canExecute(context) {
-        try {
-            this._checkDependencies(context);
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    // Réinitialiser l'état de l'étape
-    reset() {
-        this.executed = false;
-        this.result = null;
-        this.startTime = null;
-        this.endTime = null;
-        this.error = null;
+    _getStepNumber() {
+        return '00';
     }
 }
 
-module.exports = { BaseStep }; 
+module.exports = { BaseStep };

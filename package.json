@@ -1,13 +1,16 @@
 {
   "name": "wa-setup",
-  "version": "1.0.0",
-  "description": "WhatsApp Account Creation - Version Minimale",
+  "version": "2.0.0",
+  "description": "WhatsApp Account Creation & Migration - Version Simplifiée Unifiée",
   "main": "src/workflow.js",
   "scripts": {
-    "start": "node src/workflow.js UK",
-    "create-uk": "node src/workflow.js UK",
-    "create-fr": "node src/workflow.js FR",
-    "create-us": "node src/workflow.js US",
+    "start": "node src/workflow.js create UK",
+    "create-uk": "node src/workflow.js create UK",
+    "create-fr": "node src/workflow.js create FR",
+    "create-us": "node src/workflow.js create US",
+    "migrate-uk": "node src/workflow.js migrate UK",
+    "migrate-fr": "node src/workflow.js migrate FR",
+    "migrate-us": "node src/workflow.js migrate US",
     "setup": "node setup-sms-api.js",
     "test": "node tests/test-workflow.js",
     "test-services": "node tests/test-services-unified.js",
@@ -20,8 +23,14 @@
   "keywords": [
     "whatsapp",
     "automation",
+    "account-creation",
+    "account-migration",
+    "ocr",
+    "tesseract",
     "bluestack",
-    "sms"
+    "sms",
+    "simplified",
+    "unified"
   ],
   "author": "",
   "license": "ISC",
