@@ -155,6 +155,7 @@ class OCRService {
             const suggestedActions = this._detectSuggestedActions(extractedText);
             
             const result = {
+                success: !errorAnalysis.hasError, // AJOUT CRITIQUE: propriété manquante
                 hasError: errorAnalysis.hasError,
                 errorType: errorAnalysis.errorType,
                 errorMessage: errorAnalysis.errorMessage,
@@ -177,6 +178,7 @@ class OCRService {
         } catch (error) {
             console.error('❌ Erreur analyse erreurs post-SMS:', error.message);
             return {
+                success: false, // AJOUT: propriété manquante
                 hasError: false,
                 errorType: 'analysis_failed',
                 errorMessage: `Analyse échouée: ${error.message}`,
@@ -493,6 +495,33 @@ class OCRService {
      */
     _analyzeSMSErrors(text) {
         const textLower = text.toLowerCase();
+        
+        // AJOUT: Patterns d'états normaux (pas d'erreur)
+        const normalStatePatterns = [
+            /verifying\s*your\s*number/i,
+            /waiting\s*to\s*automatically/i,
+            /6[-\s]*digit\s*code/i,
+            /enter\s*code/i,
+            /code\s*sent/i,
+            /automatically\s*detect/i,
+            /detect.*sms/i,
+            /sent.*sms/i,
+            /verification.*code/i
+        ];
+        
+        // Vérifier d'abord les états normaux
+        const isNormalState = normalStatePatterns.some(pattern => pattern.test(textLower));
+        
+        if (isNormalState) {
+            return {
+                hasError: false,
+                errorType: null,
+                errorMessage: null,
+                canRetry: true,
+                needsNewNumber: false,
+                confidence: 0.9
+            };
+        }
         
         const errorPatterns = {
             timeout: /timeout|timed.*out|too.*long/i,

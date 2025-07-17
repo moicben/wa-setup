@@ -23,9 +23,14 @@ const { FinalizeAccountStep } = require('./steps/FinalizeAccountStep');
  */
 class SimpleWorkflowContext {
     constructor(config = {}) {
+        console.log(`[DIAG] ENV in context: DEVICE_HOST=${process.env.DEVICE_HOST}, DEVICE_PORT=${process.env.DEVICE_PORT}`);
+        // Support des variables d'environnement pour multi-devices
+        const defaultDeviceId = process.env.DEVICE_HOST || 
+                               (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
+        
         this.config = {
             country: config.country || 'UK',
-            deviceId: config.deviceId || '127.0.0.1:5585',
+            deviceId: config.deviceId || defaultDeviceId,
             smsApiKey: config.smsApiKey || process.env.SMS_ACTIVATE_API_KEY,
             verbose: config.verbose !== false,
             maxRetries: config.maxRetries || 3,
@@ -54,8 +59,7 @@ class SimpleWorkflowContext {
         this.metrics = {
             totalDuration: 0,
             stepDurations: {},
-            errors: [],
-            screenshots: []
+            errors: []
         };
     }
 
@@ -69,6 +73,7 @@ class SimpleWorkflowContext {
     getMetrics() { return this.metrics; }
     getCurrentStep() { return this.session.currentStep; }
     getRetryCount() { return this.session.attempt - 1; }
+    getCurrentAttempt() { return this.session.attempt; }
 
     // Setters
     setCountry(country) { this.session.country = country; }
@@ -79,6 +84,11 @@ class SimpleWorkflowContext {
     setCurrentStep(stepName, stepNumber) { 
         this.session.currentStep = stepName; 
         this.session.currentStepNumber = stepNumber;
+    }
+
+    // Méthode pour mettre à jour la session avec plusieurs propriétés
+    updateSession(updates) {
+        Object.assign(this.session, updates);
     }
 
     // Gestion des résultats d'étapes
@@ -101,15 +111,6 @@ class SimpleWorkflowContext {
     get whatsapp() { return this.services.whatsapp; }
 
     // Méthodes utilitaires
-    async takeScreenshot(filename) {
-        const screenshotPath = await this.bluestack.takeScreenshot(filename);
-        this.metrics.screenshots.push({
-            filename,
-            timestamp: Date.now(),
-            attempt: this.session.attempt
-        });
-        return screenshotPath;
-    }
 
     recordError(stepName, error) {
         this.metrics.errors.push({
@@ -127,19 +128,11 @@ class SimpleWorkflowContext {
         this.stepResults.clear();
         this.executedSteps.clear();
         this.session.attempt++;
+        // Ne pas clear les services - ils sont réutilisés
     }
 
     async cleanup() {
         try {
-            // Nettoyage SMS
-            if (this.session.smsId && this.sms) {
-                try {
-                    await this.sms.cancelNumber(this.session.smsId);
-                } catch (e) {
-                    console.warn('⚠️ Impossible d\'annuler le SMS lors du nettoyage');
-                }
-            }
-
             // Nettoyage services
             if (this.services.bluestack && this.services.bluestack.cleanup) {
                 await this.services.bluestack.cleanup();
@@ -169,21 +162,32 @@ class SimpleWorkflowContext {
 
     async _createServices() {
         // Import dynamique des services
-        const { createBlueStacksDevice } = require('./services/device');
-        const { createSMSManager } = require('./services/sms');
-        const { createWhatsAppService } = require('./services/whatsapp');
+        const { createBlueStacksDevice } = require('./services/device-service');
+        const { createSMSManager } = require('./services/sms-service');
+        const { createWhatsAppService } = require('./services/whatsapp-service');
 
-        // Créer les services
-        this.services.bluestack = await createBlueStacksDevice(this.config);
-        this.services.sms = await createSMSManager(this.config);
-        this.services.whatsapp = createWhatsAppService(this.config);
+        // Créer les services seulement s'ils n'existent pas déjà
+        if (!this.services.bluestack) {
+            // S'assurer que le deviceId est correct depuis les variables d'environnement
+            const deviceConfig = {
+                ...this.config,
+                deviceId: this.config.deviceId  // Utiliser le deviceId du contexte qui a les bonnes variables env
+            };
+            this.services.bluestack = await createBlueStacksDevice(deviceConfig);
+        }
+        if (!this.services.sms) {
+            this.services.sms = await createSMSManager(this.config);
+        }
+        if (!this.services.whatsapp) {
+            this.services.whatsapp = createWhatsAppService(this.config);
+        }
     }
 
     async _initializeServices() {
         // Initialiser BlueStack
-        if (this.services.bluestack.initialize) {
-            await this.services.bluestack.initialize();
-        }
+        // if (this.services.bluestack.initialize) {
+        //     await this.services.bluestack.initialize();
+        // }
 
         // Initialiser WhatsApp avec device
         if (this.services.whatsapp.initialize) {
@@ -217,7 +221,7 @@ class WhatsAppWorkflow {
     _validateAndNormalizeConfig(config) {
         const normalizedConfig = {
             country: config.country || 'UK',
-            deviceId: config.deviceId || '127.0.0.1:5585',
+            deviceId: config.deviceId || process.env.DEVICE_HOST || (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585'),
             smsApiKey: config.smsApiKey || process.env.SMS_ACTIVATE_API_KEY,
             verbose: config.verbose !== false,
             maxRetries: config.maxRetries || 3,
@@ -232,7 +236,7 @@ class WhatsAppWorkflow {
             throw new Error('Clé API SMS requise. Utilisez "npm run setup" pour configurer.');
         }
         
-        const validCountries = ['UK', 'FR', 'US'];
+        const validCountries = ['UK', 'FR', 'US', 'ID'];
         if (!validCountries.includes(normalizedConfig.country)) {
             throw new Error(`Pays non supporté: ${normalizedConfig.country}. Pays supportés: ${validCountries.join(', ')}`);
         }
@@ -252,8 +256,7 @@ class WhatsAppWorkflow {
                 this.config.deviceProvider = 'bluestacks';
             }
 
-            // Créer le dossier screenshots
-            this._ensureScreenshotDirectory();
+
 
             // Créer le contexte
             this.context = new SimpleWorkflowContext(this.config);
@@ -276,12 +279,7 @@ class WhatsAppWorkflow {
         }
     }
 
-    _ensureScreenshotDirectory() {
-        const screenshotDir = path.join(__dirname, '../screenshots');
-        if (!fs.existsSync(screenshotDir)) {
-            fs.mkdirSync(screenshotDir, { recursive: true });
-        }
-    }
+
 
     _buildSteps() {
         return [

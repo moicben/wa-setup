@@ -3,7 +3,7 @@
  * Réinitialise et lance l'application pour un état propre
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 
 class InitializeAppStep extends BaseStep {
     constructor() {
@@ -87,6 +87,9 @@ class InitializeAppStep extends BaseStep {
      */
     async canExecute(context) {
         try {
+            // Tenter de reconnecter le device si nécessaire
+            await context.bluestack.reconnectIfNeeded();
+            
             // Vérifier que BlueStack est connecté
             const status = await context.bluestack.checkStatus();
             if (!status.connected) {

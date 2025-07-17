@@ -3,7 +3,7 @@
  * Extrait de workflow.js lignes 1366-1442
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 
 class FinalizeAccountStep extends BaseStep {
     constructor() {
@@ -16,7 +16,7 @@ class FinalizeAccountStep extends BaseStep {
      * Validation des prérequis
      */
     validatePrerequisites(context) {
-        if (!context.bluestackController) {
+        if (!context.bluestack) {
             throw new Error('BlueStack Controller requis pour la finalisation');
         }
         
@@ -27,7 +27,7 @@ class FinalizeAccountStep extends BaseStep {
      * Exécuter l'étape de finalisation du compte
      */
     async _execute(context) {
-        const bluestack = context.bluestackController;
+        const bluestack = context.bluestack;
         
         console.log('🏁 Finalisation du compte...');
         

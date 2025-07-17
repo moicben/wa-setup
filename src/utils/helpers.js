@@ -292,7 +292,7 @@ class Validator {
     }
 
     static isValidCountryCode(country) {
-        const validCountries = ['UK', 'FR', 'US', 'DE', 'ES', 'CA', 'IT'];
+        const validCountries = ['UK', 'FR', 'US', 'DE', 'ES', 'CA', 'IT', 'ID'];
         return validCountries.includes(country?.toUpperCase());
     }
 

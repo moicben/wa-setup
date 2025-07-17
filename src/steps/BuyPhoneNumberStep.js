@@ -3,7 +3,7 @@
  * Achète un numéro SMS avec fallback automatique et gestion des prix
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 
 class BuyPhoneNumberStep extends BaseStep {
     constructor() {
@@ -44,8 +44,12 @@ class BuyPhoneNumberStep extends BaseStep {
             if (numberResult.parsed && numberResult.parsed.success) {
                 console.log(`🌍 Indicatif: +${numberResult.parsed.countryCode}`);
                 console.log(`📞 Local: ${numberResult.parsed.localNumber}`);
+                console.log(`✅ Numéro correctement parsé`);
             } else {
                 console.warn('⚠️ Parsing du numéro échoué, utilisation du numéro brut');
+                if (numberResult.parsed && numberResult.parsed.error) {
+                    console.warn(`   Erreur: ${numberResult.parsed.error}`);
+                }
             }
 
             const result = {

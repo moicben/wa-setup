@@ -89,9 +89,21 @@ class BaseStep {
         }
     }
 
-    async _input(context, text) {
-        if (context.bluestack && context.bluestack.input) {
-            await context.bluestack.input(text);
+    async _inputText(context, text) {
+        if (context.bluestack && context.bluestack.inputText) {
+            await context.bluestack.inputText(text);
+        }
+    }
+
+    async _clearField(context, x, y) {
+        if (context.bluestack && context.bluestack.clearField) {
+            await context.bluestack.clearField(x, y);
+        }
+    }
+
+    async _swipe(context, startX, startY, endX, endY, duration = 300) {
+        if (context.bluestack && context.bluestack.swipe) {
+            await context.bluestack.swipe(startX, startY, endX, endY, duration);
         }
     }
 
@@ -103,14 +115,21 @@ class BaseStep {
 
     async _wait(context, duration = 'medium') {
         const durations = {
-            short: 1000,
-            medium: 3000,
-            long: 5000,
-            extra: 10000
+            short: 500,
+            medium: 1000,
+            long: 2000,
+            extra: 5000,
+            appLaunch: 3000,
+            sms: 5000,
+            network: 10000
         };
         
-        const ms = typeof duration === 'number' ? duration : durations[duration] || 3000;
-        await new Promise(resolve => setTimeout(resolve, ms));
+        const ms = typeof duration === 'string' ? durations[duration] || 1000 : duration;
+        if (context.bluestack && context.bluestack.wait) {
+            await context.bluestack.wait(ms);
+        } else {
+            await new Promise(resolve => setTimeout(resolve, ms));
+        }
     }
 
     /**

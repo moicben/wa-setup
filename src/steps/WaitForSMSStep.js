@@ -3,11 +3,11 @@
  * Extrait de workflow.js lignes 307-315
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 
 class WaitForSMSStep extends BaseStep {
     constructor() {
-        super('WaitForSMSStep');
+        super('Wait For SMS', ['Analyze Post SMS']);
         this.description = 'Attendre la réception du SMS de vérification';
         this.timeout = 120000; // 2 minutes timeout
     }
@@ -20,11 +20,36 @@ class WaitForSMSStep extends BaseStep {
             throw new Error('SMS ID requis pour attendre la réception');
         }
         
-        if (!context.smsManager) {
-            throw new Error('SMS Manager requis pour attendre la réception');
+        if (!context.sms) {
+            throw new Error('Service SMS non configuré');
         }
         
         return true;
+    }
+
+    async canExecute(context) {
+        try {
+            // Vérifier l'analyse post-SMS au lieu de Request SMS Code
+            const analysisResult = this._getDependencyResult(context, 'Analyze Post SMS');
+            if (!analysisResult || !analysisResult.success) {
+                throw new Error('Analyse post-SMS non terminée');
+            }
+
+            // Vérifier l'ID SMS
+            if (!context.getSMSId()) {
+                throw new Error('ID SMS non disponible');
+            }
+
+            // Vérifier le service SMS
+            if (!context.sms) {
+                throw new Error('Service SMS non configuré');
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`❌ Prérequis non satisfaits pour attente SMS: ${error.message}`);
+            return false;
+        }
     }
 
     /**
@@ -32,13 +57,13 @@ class WaitForSMSStep extends BaseStep {
      */
     async _execute(context) {
         const smsId = context.getSMSId();
-        const smsManager = context.smsManager;
+        const sms = context.sms;
         
         console.log(`📨 Attente SMS pour numéro ID: ${smsId}`);
         
         try {
             // Attendre la réception du SMS avec timeout
-            const smsResult = await smsManager.waitForSMS(smsId, this.timeout);
+            const smsResult = await sms.waitForSMS(smsId, this.timeout);
             
             if (!smsResult.success) {
                 throw new Error(`Impossible de recevoir le SMS: ${smsResult.error}`);
@@ -72,22 +97,13 @@ class WaitForSMSStep extends BaseStep {
     }
 
     /**
-     * Nettoyage en cas d'erreur
+     * Nettoyage si l'étape échoue
      */
-    async cleanup(context, error) {
-        if (error) {
-            console.warn(`⚠️ Nettoyage après erreur d'attente SMS: ${error.message}`);
-            
-            // Tenter d'annuler le numéro SMS si possible
-            const smsId = context.getSMSId();
-            if (smsId && context.smsManager) {
-                try {
-                    await context.smsManager.cancelNumber(smsId);
-                    console.log('🗑️ Numéro SMS annulé après erreur');
-                } catch (cancelError) {
-                    console.warn('⚠️ Impossible d\'annuler le numéro SMS');
-                }
-            }
+    async cleanup(context) {
+        try {
+            console.log('🧹 Nettoyage WaitForSMS terminé');
+        } catch (error) {
+            console.warn(`⚠️ Erreur nettoyage WaitForSMS: ${error.message}`);
         }
     }
 

@@ -12,14 +12,18 @@ const path = require('path');
  */
 class DeviceService {
     constructor(config = {}) {
+        console.log(`[DIAG] In DeviceService constructor: passed config.deviceId = ${config.deviceId}, process.env.DEVICE_HOST = ${process.env.DEVICE_HOST}, process.env.DEVICE_PORT = ${process.env.DEVICE_PORT}`);
+        // Remove redundant fallback
+        // const defaultDeviceId = process.env.DEVICE_HOST || (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
         this.config = {
-            deviceId: config.deviceId || '127.0.0.1:5585',
+            deviceId: config.deviceId,  // Assume provided
             adbPath: config.adbPath || 'adb',
             ...config
         };
 
         this.deviceId = this.config.deviceId;
         this.adbPath = this.config.adbPath;
+        this.deviceLabel = process.env.DEVICE_ID || 'Device1';
         this.isConnected = false;
         this.initialized = false;
         
@@ -46,7 +50,7 @@ class DeviceService {
      */
     async initialize() {
         try {
-            console.log(`🚀 Initialisation Device Service (${this.deviceId})...`);
+            console.log(`[${this.deviceLabel}] 🚀 Initialisation Device Service (${this.deviceId})...`);
             
             // Vérifier ADB
             await this._checkADB();
@@ -56,11 +60,11 @@ class DeviceService {
             
             // Vérifier le device
             const deviceInfo = await this._getDeviceInfo();
-            console.log(`📱 Device: ${deviceInfo.model || 'Unknown'} (Android ${deviceInfo.androidVersion || 'Unknown'})`);
+            console.log(`[${this.deviceLabel}] 📱 Device: ${deviceInfo.model || 'Unknown'} (Android ${deviceInfo.androidVersion || 'Unknown'})`);
             
             this.isConnected = true;
             this.initialized = true;
-            console.log('✅ Device Service prêt');
+            console.log(`[${this.deviceLabel}] ✅ Device Service prêt`);
             
             return true;
         } catch (error) {
@@ -79,7 +83,7 @@ class DeviceService {
             if (!result.stdout.includes('Android Debug Bridge')) {
                 throw new Error('ADB non fonctionnel');
             }
-            console.log('✅ ADB trouvé et fonctionnel');
+            console.log(`[${this.deviceLabel}] ✅ ADB trouvé et fonctionnel`);
         } catch (error) {
             throw new Error(`ADB non disponible: ${error.message}`);
         }
@@ -102,7 +106,7 @@ class DeviceService {
                 throw new Error(`Device ${this.deviceId} non trouvé dans la liste ADB`);
             }
 
-            console.log(`✅ Connecté au device ${this.deviceId}`);
+            console.log(`[${this.deviceLabel}] ✅ Connecté au device ${this.deviceId}`);
         } catch (error) {
             throw new Error(`Connexion device échouée: ${error.message}`);
         }
@@ -134,7 +138,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`👆 Clic (${x}, ${y})`);
+            console.log(`[${this.deviceLabel}] 👆 Clic (${x}, ${y})`);
             const result = await this._executeShell(`input tap ${x} ${y}`);
             this.recordMetric('click', true);
             await this.wait(this.delays.short);
@@ -155,7 +159,7 @@ class DeviceService {
         try {
             // Échapper les caractères spéciaux
             const escapedText = text.replace(/[()&;\|<>"`'"]/g, '\\$&').replace(/ /g, '%s');
-            console.log(`⌨️ Saisie: ${text}`);
+            console.log(`[${this.deviceLabel}] ⌨️ Saisie: ${text}`);
             
             const result = await this._executeShell(`input text "${escapedText}"`);
             this.recordMetric('inputText', true);
@@ -175,7 +179,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`🔘 Touche: ${keyCode}`);
+            console.log(`[${this.deviceLabel}] 🔘 Touche: ${keyCode}`);
             
             // Convertir les noms de touches en codes
             const keyCodes = {
@@ -209,7 +213,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`🧹 Effacement champ (${x}, ${y})`);
+            console.log(`[${this.deviceLabel}] 🧹 Effacement champ (${x}, ${y})`);
             
             // Cliquer dans le champ
             await this.click(x, y);
@@ -245,7 +249,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`👆 Swipe (${startX},${startY}) → (${endX},${endY})`);
+            console.log(`[${this.deviceLabel}] 👆 Swipe (${startX},${startY}) → (${endX},${endY})`);
             const result = await this._executeShell(`input swipe ${startX} ${startY} ${endX} ${endY} ${duration}`);
             this.recordMetric('swipe', true);
             await this.wait(this.delays.short);
@@ -284,7 +288,7 @@ class DeviceService {
             await this._executeShell(`rm ${devicePath}`);
             
             this.metrics.screenshotsTaken++;
-            console.log(`📸 Screenshot: ${localPath}`);
+            console.log(`[${this.deviceLabel}] 📸 Screenshot: ${localPath}`);
             return localPath;
         } catch (error) {
             console.error(`❌ Erreur screenshot: ${error.message}`);
@@ -299,7 +303,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`📱 Lancement ${packageName}...`);
+            console.log(`[${this.deviceLabel}] 📱 Lancement ${packageName}...`);
             
             // Forcer l'arrêt de l'app
             await this._executeShell(`am force-stop ${packageName}`);
@@ -309,7 +313,7 @@ class DeviceService {
             await this._executeShell(`monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`);
             await this.wait(this.delays.appLaunch);
             
-            console.log(`✅ ${packageName} lancé`);
+            console.log(`[${this.deviceLabel}] ✅ ${packageName} lancé`);
             this.recordMetric('launchApp', true);
             return true;
         } catch (error) {
@@ -326,9 +330,9 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`🛑 Arrêt ${packageName}...`);
+            console.log(`[${this.deviceLabel}] 🛑 Arrêt ${packageName}...`);
             await this._executeShell(`am force-stop ${packageName}`);
-            console.log(`✅ ${packageName} arrêté`);
+            console.log(`[${this.deviceLabel}] ✅ ${packageName} arrêté`);
             this.recordMetric('killApp', true);
             return true;
         } catch (error) {
@@ -345,7 +349,7 @@ class DeviceService {
         this._checkInitialized();
         
         try {
-            console.log(`🔄 Reset ${packageName}...`);
+            console.log(`[${this.deviceLabel}] 🔄 Reset ${packageName}...`);
             
             // Arrêter l'app
             await this._executeShell(`am force-stop ${packageName}`);
@@ -354,7 +358,7 @@ class DeviceService {
             await this._executeShell(`pm clear ${packageName}`);
             await this.wait(this.delays.medium);
             
-            console.log(`✅ ${packageName} réinitialisé`);
+            console.log(`[${this.deviceLabel}] ✅ ${packageName} réinitialisé`);
             this.recordMetric('resetApp', true);
             return true;
         } catch (error) {
@@ -388,7 +392,7 @@ class DeviceService {
                 return { connected: false, whatsappInstalled: false, error: 'Non initialisé' };
             }
 
-            console.log('🔧 Vérification statut...');
+            console.log(`[${this.deviceLabel}] 🔧 Vérification statut...`);
             
             // Test connexion
             const devices = await this._executeCommand('devices');
@@ -402,8 +406,8 @@ class DeviceService {
             const result = await this._executeShell('pm list packages com.whatsapp');
             const whatsappInstalled = result.stdout.includes('com.whatsapp');
             
-            console.log(`✅ Connexion: OK`);
-            console.log(`${whatsappInstalled ? '✅' : '❌'} WhatsApp: ${whatsappInstalled ? 'Installé' : 'Manquant'}`);
+            console.log(`[${this.deviceLabel}] ✅ Connexion: OK`);
+            console.log(`[${this.deviceLabel}] ${whatsappInstalled ? '✅' : '❌'} WhatsApp: ${whatsappInstalled ? 'Installé' : 'Manquant'}`);
             
             return { 
                 connected: true, 
@@ -442,7 +446,10 @@ class DeviceService {
      */
     async _executeCommand(command) {
         return new Promise((resolve, reject) => {
-            const fullCommand = `${this.adbPath} ${command}`;
+            // Ajouter -s deviceId si pas déjà présent pour éviter l'erreur "more than one device"
+            const fullCommand = command.includes('-s') ? 
+                `${this.adbPath} ${command}` : 
+                `${this.adbPath} -s ${this.deviceId} ${command}`;
             const [cmd, ...args] = fullCommand.split(' ');
             
             const process = spawn(cmd, args);
@@ -485,6 +492,42 @@ class DeviceService {
     }
 
     /**
+     * Exécuter une commande ADB (méthode publique)
+     */
+    async executeADB(command) {
+        this._checkInitialized();
+        
+        try {
+            console.log(`[${this.deviceLabel}] 🔧 ADB: ${command}`);
+            const result = await this._executeCommand(`-s ${this.deviceId} ${command}`);
+            this.recordMetric('executeADB', true);
+            return result;
+        } catch (error) {
+            console.error(`❌ Erreur ADB: ${error.message}`);
+            this.recordMetric('executeADB', false);
+            throw error;
+        }
+    }
+
+    /**
+     * Exécuter une commande shell (méthode publique)
+     */
+    async executeShell(shellCommand) {
+        this._checkInitialized();
+        
+        try {
+            console.log(`[${this.deviceLabel}] 🐚 Shell: ${shellCommand}`);
+            const result = await this._executeShell(shellCommand);
+            this.recordMetric('executeShell', true);
+            return result;
+        } catch (error) {
+            console.error(`❌ Erreur Shell: ${error.message}`);
+            this.recordMetric('executeShell', false);
+            throw error;
+        }
+    }
+
+    /**
      * Enregistrer une métrique
      */
     recordMetric(operation, success) {
@@ -522,20 +565,50 @@ class DeviceService {
     /**
      * Nettoyer les ressources
      */
-    async cleanup() {
+    async cleanup(options = {}) {
         try {
-            if (this.isConnected) {
-                // Déconnecter si nécessaire
+            const { forceDisconnect = false } = options;
+            
+            if (forceDisconnect && this.isConnected) {
+                // Déconnecter seulement si explicitement demandé
                 if (this.deviceId.includes(':')) {
                     await this._executeCommand(`disconnect ${this.deviceId}`);
                 }
+                this.isConnected = false;
+                this.initialized = false;
+                console.log(`[${this.deviceLabel}] 🧹 Device Service déconnecté`);
+            } else {
+                // Nettoyage léger - garde la connexion active
+                console.log(`[${this.deviceLabel}] 🧹 Device Service nettoyé (connexion maintenue)`);
             }
-            
-            this.isConnected = false;
-            this.initialized = false;
-            console.log('🧹 Device Service nettoyé');
         } catch (error) {
             console.warn(`⚠️ Erreur nettoyage Device: ${error.message}`);
+        }
+    }
+
+    /**
+     * Reconnecter le device si nécessaire
+     */
+    async reconnectIfNeeded() {
+        try {
+            if (!this.initialized || !this.isConnected) {
+                console.log(`[${this.deviceLabel}] 🔄 Reconnexion du device...`);
+                await this.initialize();
+                return true;
+            }
+            
+            // Vérifier si la connexion est toujours active
+            const devices = await this._executeCommand('devices');
+            if (!devices.stdout.includes(this.deviceId)) {
+                console.log(`[${this.deviceLabel}] 🔄 Connexion ADB perdue, reconnexion...`);
+                await this._connectDevice();
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error(`❌ Erreur reconnexion: ${error.message}`);
+            throw error;
         }
     }
 }

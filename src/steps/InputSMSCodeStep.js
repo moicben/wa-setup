@@ -3,7 +3,7 @@
  * Extrait de workflow.js lignes 1327-1361
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 
 class InputSMSCodeStep extends BaseStep {
     constructor() {
@@ -20,7 +20,7 @@ class InputSMSCodeStep extends BaseStep {
             throw new Error('Code SMS requis pour la saisie');
         }
         
-        if (!context.bluestackController) {
+        if (!context.bluestack) {
             throw new Error('BlueStack Controller requis pour la saisie');
         }
         
@@ -32,7 +32,7 @@ class InputSMSCodeStep extends BaseStep {
      */
     async _execute(context) {
         const code = context.getSMSCode();
-        const bluestack = context.bluestackController;
+        const bluestack = context.bluestack;
         
         console.log(`🔢 Saisie code: ${code}`);
         

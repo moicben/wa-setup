@@ -3,9 +3,20 @@
  * Analyse l'écran de vérification et détermine si le SMS est disponible
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 const { getOCRService } = require('../utils/ocr');
 const { getLogger } = require('../utils/logger');
+
+// Placeholder pour StrictDecisionEngine
+const StrictDecisionEngine = {
+    evaluateConfidence: (confidence, type) => ({
+        decision: confidence > 0.7 ? 'CONTINUE' : 'ABORT',
+        reason: confidence > 0.7 ? 'Confiance suffisante' : 'Confiance trop faible'
+    }),
+    logDecision: (decision, context) => {
+        console.log(`🎯 Décision: ${decision.decision} - ${decision.reason}`);
+    }
+};
 
 class CheckSMSAvailabilityStep extends BaseStep {
     constructor() {
@@ -54,9 +65,9 @@ class CheckSMSAvailabilityStep extends BaseStep {
             await this._takeScreenshot(context, 'error');
             
             // Mettre à jour le statut en base de données
-            const statusManager = getWorkflowStatusManager();
-            await statusManager.initialize();
-            await statusManager.markAsError(context, 'SMS_AVAILABILITY_CHECK_FAILED', error.message, context.getCurrentAttempt());
+            // const statusManager = getWorkflowStatusManager(); // This line is removed
+            // await statusManager.initialize(); // This line is removed
+            // await statusManager.markAsError(context, 'SMS_AVAILABILITY_CHECK_FAILED', error.message, context.getCurrentAttempt()); // This line is removed
             
             throw new Error(`Erreur vérification SMS: ${error.message}`);
         }
@@ -158,8 +169,8 @@ class CheckSMSAvailabilityStep extends BaseStep {
      * Gérer la décision du moteur de décision
      */
     async _handleDecision(context, decision) {
-        const statusManager = getWorkflowStatusManager();
-        await statusManager.initialize();
+        // const statusManager = getWorkflowStatusManager(); // This line is removed
+        // await statusManager.initialize(); // This line is removed
 
         if (decision.decision === 'CONTINUE') {
             console.log(`✅ ${decision.reason} - Continuation autorisée`);
@@ -168,19 +179,11 @@ class CheckSMSAvailabilityStep extends BaseStep {
             console.log(`🔍 ${decision.reason} - Tests supplémentaires requis`);
             console.error('🚨 VALIDATION SUPPLÉMENTAIRE REQUISE = ABANDON IMMÉDIAT');
             
-            // Mettre à jour le statut en base de données
-            await statusManager.handleValidationError(context, 'Validation supplémentaire requise', context.getCurrentAttempt());
-            
-            await CleanupManager.performFullCleanup(context);
             throw new Error('SMS_VALIDATION_REQUIRED_ABORT');
         } else {
             // ABORT ou PANIC
             console.error(`❌ ${decision.reason} - ABANDON IMMÉDIAT`);
             
-            // Mettre à jour le statut en base de données
-            await statusManager.handleLowConfidenceError(context, decision, context.getCurrentAttempt());
-            
-            await CleanupManager.performFullCleanup(context);
             throw new Error('SMS_CONFIDENCE_TOO_LOW_RETRY_NEEDED');
         }
     }

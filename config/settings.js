@@ -16,7 +16,7 @@ const config = {
         apiKey: process.env.SMS_ACTIVATE_API_KEY,
         baseUrl: 'https://sms-activate.org/stubs/handler_api.php',
         timeout: 300000, // 5 minutes
-        supportedCountries: ['UK', 'US', 'FR', 'DE', 'ES']
+        supportedCountries: ['UK', 'US', 'FR', 'DE', 'ES', 'ID']
     },
 
     // Paramètres par défaut

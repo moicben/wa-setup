@@ -10,25 +10,62 @@ const fetch = require('node-fetch');
  */
 class PhoneNumberParser {
     static parseNumber(phone, country) {
-        const cleaned = phone.replace(/\D/g, '');
-        
-        const countryData = {
-            'UK': { code: '+44', prefix: '44' },
-            'FR': { code: '+33', prefix: '33' },
-            'US': { code: '+1', prefix: '1' },
-            'DE': { code: '+49', prefix: '49' },
-            'ES': { code: '+34', prefix: '34' }
-        };
-        
-        const data = countryData[country.toUpperCase()] || { code: '+' + cleaned.substr(0, 2), prefix: cleaned.substr(0, 2) };
-        
-        return {
-            country: country.toUpperCase(),
-            countryCode: data.code,
-            nationalNumber: cleaned,
-            internationalNumber: data.code + cleaned,
-            formatted: data.code + cleaned
-        };
+        try {
+            if (!phone || !country) {
+                return {
+                    success: false,
+                    error: 'Numéro ou pays manquant'
+                };
+            }
+
+            const cleaned = phone.replace(/\D/g, '');
+            
+            if (cleaned.length < 10) {
+                return {
+                    success: false,
+                    error: 'Numéro trop court'
+                };
+            }
+            
+            const countryData = {
+                'UK': { code: '44', prefix: '44' },
+                'FR': { code: '33', prefix: '33' },
+                'US': { code: '1', prefix: '1' },
+                'DE': { code: '49', prefix: '49' },
+                'ES': { code: '34', prefix: '34' },
+                'ID': { code: '62', prefix: '62' }
+            };
+            
+            const data = countryData[country.toUpperCase()];
+            
+            if (!data) {
+                return {
+                    success: false,
+                    error: `Pays ${country} non supporté`
+                };
+            }
+
+            // Extraire le numéro local (supprimer le code pays s'il est présent)
+            let localNumber = cleaned;
+            if (cleaned.startsWith(data.prefix)) {
+                localNumber = cleaned.substring(data.prefix.length);
+            }
+            
+            return {
+                success: true,
+                country: country.toUpperCase(),
+                countryCode: data.code,
+                localNumber: localNumber,
+                nationalNumber: cleaned,
+                internationalNumber: `+${data.code}${localNumber}`,
+                formatted: `+${data.code}${localNumber}`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 }
 
@@ -49,14 +86,16 @@ class SMSService {
             'DE': '43',
             'ES': '56',
             'CA': '36',
-            'IT': '86'
+            'IT': '86',
+            'ID': '6'
         };
         
         this.countryFallbacks = {
             'UK': ['US', 'FR', 'DE'],
             'US': ['FR', 'DE', 'ES'],
             'FR': ['US', 'DE', 'ES'],
-            'DE': ['US', 'FR', 'ES']
+            'DE': ['US', 'FR', 'ES'],
+            'ID': ['US', 'FR', 'DE']
         };
         
         this.purchaseTimes = new Map();
@@ -269,6 +308,46 @@ class SMSService {
         } catch (error) {
             console.error('❌ Erreur récupération solde:', error);
             return { balance: 0 };
+        }
+    }
+
+    /**
+     * Obtenir les pays supportés
+     */
+    getSupportedCountries() {
+        return Object.keys(this.countryMap);
+    }
+
+    /**
+     * Obtenir le statut des numéros pour un pays
+     */
+    async getNumbersStatus(country) {
+        try {
+            const countryCode = this.getCountryCode(country);
+            if (!countryCode) {
+                return { available: false, count: 0, error: 'Pays non supporté' };
+            }
+
+            const response = await fetch(
+                `${this.baseUrl}?api_key=${this.apiKey}&action=getNumbersStatus&country=${countryCode}&service=${this.serviceId}`,
+                { timeout: 10000 }
+            );
+
+            const result = await response.text();
+            
+            if (result.includes('COUNT')) {
+                const [, count] = result.split(':');
+                return { 
+                    available: parseInt(count) > 0, 
+                    count: parseInt(count),
+                    country: country 
+                };
+            } else {
+                return { available: false, count: 0, error: result };
+            }
+        } catch (error) {
+            console.error(`❌ Erreur statut numéros ${country}:`, error);
+            return { available: false, count: 0, error: error.message };
         }
     }
 

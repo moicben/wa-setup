@@ -3,7 +3,7 @@
  * Gère la navigation, saisie et validation du numéro
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 const { getLogger } = require('../utils/logger');
 
 class InputPhoneNumberStep extends BaseStep {
@@ -65,10 +65,9 @@ class InputPhoneNumberStep extends BaseStep {
             await this._takeScreenshot(context, 'error');
             
             // Mettre à jour le statut en base de données
-            const statusManager = getWorkflowStatusManager();
-            await statusManager.initialize();
-            await statusManager.markAsError(context, 'PHONE_INPUT_FAILED', error.message, context.getCurrentAttempt());
-            
+            // La gestion des erreurs est maintenant gérée par le workflow parent
+            // et les étapes de sauvegarde/restauration.
+            // Pour l'instant, on relance l'erreur pour que le workflow la capture.
             throw new Error(`Erreur saisie numéro: ${error.message}`);
         }
     }

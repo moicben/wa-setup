@@ -3,7 +3,7 @@
  * Sélectionne l'option SMS et demande l'envoi du code
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 const { getLogger } = require('../utils/logger');
 
 class RequestSMSCodeStep extends BaseStep {

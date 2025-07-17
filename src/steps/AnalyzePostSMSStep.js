@@ -3,7 +3,7 @@
  * Analyse l'écran après la demande de SMS pour détecter les erreurs
  */
 
-const { BaseStep } = require('../workflows/base/BaseStep');
+const { BaseStep } = require('../base/BaseStep');
 const { getOCRService } = require('../utils/ocr');
 const { getLogger } = require('../utils/logger');
 
@@ -45,11 +45,6 @@ class AnalyzePostSMSStep extends BaseStep {
             // Prendre un screenshot d'erreur
             await this._takeScreenshot(context, 'error');
             
-            // Mettre à jour le statut en base de données
-            const statusManager = getWorkflowStatusManager();
-            await statusManager.initialize();
-            await statusManager.markAsError(context, 'POST_SMS_ANALYSIS_FAILED', error.message, context.getCurrentAttempt());
-            
             throw new Error(`Erreur analyse post-SMS: ${error.message}`);
         }
     }
@@ -76,26 +71,31 @@ class AnalyzePostSMSStep extends BaseStep {
             throw new Error('CRITICAL_WHATSAPP_ERROR_ABORT');
         }
 
-        if (postSMSAnalysis.isSMSFailure) {
+        // CORRECTION: Utiliser hasError inversé car success n'existe pas
+        const analysisSuccess = !postSMSAnalysis.hasError;
+
+        if (postSMSAnalysis.hasError) {
             // Erreur SMS détectée
             await this._handleSMSFailure(context, postSMSAnalysis);
-        } else if (!postSMSAnalysis.success) {
-            // Échec de l'analyse elle-même
-            await this._handleAnalysisFailure(context, postSMSAnalysis);
+        } else if (!analysisSuccess) {
+            // Remplacer par une logique plus robuste
+            if (postSMSAnalysis.errorType === 'analysis_failed') {
+                await this._handleAnalysisFailure(context, postSMSAnalysis);
+            }
         } else {
             // Analyse réussie, pas d'erreur détectée
             console.log('✅ Aucune erreur SMS détectée');
         }
 
         return {
-            success: postSMSAnalysis.success,
-            isSMSFailure: postSMSAnalysis.isSMSFailure,
-            failureType: postSMSAnalysis.failureType,
+            success: analysisSuccess,
+            isSMSFailure: postSMSAnalysis.hasError,
+            failureType: postSMSAnalysis.errorType,
             errorMessage: postSMSAnalysis.errorMessage,
             confidence: postSMSAnalysis.confidence,
-            shouldRetryWithNewNumber: postSMSAnalysis.shouldRetryWithNewNumber,
+            shouldRetryWithNewNumber: postSMSAnalysis.needsNewNumber,
             extractedText: postSMSAnalysis.extractedText,
-            details: postSMSAnalysis.details,
+            details: postSMSAnalysis,
             timestamp: Date.now()
         };
     }
@@ -112,12 +112,6 @@ class AnalyzePostSMSStep extends BaseStep {
         if (postSMSAnalysis.shouldRetryWithNewNumber) {
             console.log('🔄 Retry automatique avec nouveau numéro recommandé');
             
-            // Tenter d'annuler le numéro actuel (ne pas échouer si ça ne marche pas)
-            const cancelled = await this._cancelCurrentNumber(context);
-            if (!cancelled) {
-                console.log('💡 Annulation impossible, mais le retry continuera quand même');
-            }
-            
             // Déclencher retry avec nouveau numéro
             throw new Error('SMS_SENDING_FAILED_RETRY_NEEDED');
         } else {
@@ -130,53 +124,16 @@ class AnalyzePostSMSStep extends BaseStep {
      * Gérer un échec d'analyse
      */
     async _handleAnalysisFailure(context, postSMSAnalysis) {
+        // Ne pas abandonner immédiatement si le texte semble normal
+        if (postSMSAnalysis.extractedText && 
+            /verifying.*waiting.*automatically/i.test(postSMSAnalysis.extractedText)) {
+            console.log('🔄 Texte normal détecté malgré échec analyse - Continuation');
+            return; // Continuer sans erreur
+        }
+        
         console.error('🚨 ANALYSE POST-SMS ÉCHOUÉE - ABANDON IMMÉDIAT');
         
-        // Mettre à jour le statut en base de données
-        const statusManager = getWorkflowStatusManager();
-        await statusManager.initialize();
-        await statusManager.handlePostSMSAnalysisError(context, 'Analyse post-SMS échouée', context.getCurrentAttempt());
-        
-        await CleanupManager.performFullCleanup(context);
         throw new Error('POST_SMS_ANALYSIS_FAILED_ABORT');
-    }
-
-    /**
-     * Annuler le numéro actuel avec gestion améliorée
-     */
-    async _cancelCurrentNumber(context) {
-        try {
-            const buyResult = this._getDependencyResult(context, 'Buy Phone Number');
-            const numberId = buyResult?.smsId;
-            
-            if (!numberId) {
-                console.warn('⚠️ Aucun numéro SMS à annuler');
-                return false;
-            }
-            
-            console.log(`🗑️ Tentative d'annulation du numéro SMS: ${numberId}`);
-            
-            // Utiliser la nouvelle gestion d'annulation avec options
-            const cancelOptions = {
-                purchaseTime: buyResult.timestamp || buyResult.purchaseTime,
-                minDelay: 30000, // 30 secondes minimum
-                force: false // Ne pas forcer, respecter les délais
-            };
-            
-            const success = await context.cancelSMS(numberId, cancelOptions);
-            
-            if (success) {
-                console.log('✅ Numéro SMS annulé avec succès');
-                return true;
-            } else {
-                console.warn('⚠️ Annulation SMS échouée - probablement trop tôt ou déjà utilisé');
-                console.log('💡 Le numéro sera marqué comme utilisé pour éviter les frais supplémentaires');
-                return false;
-            }
-        } catch (error) {
-            console.warn(`⚠️ Erreur lors de l'annulation SMS: ${error.message}`);
-            return false;
-        }
     }
 
     /**
@@ -198,12 +155,6 @@ class AnalyzePostSMSStep extends BaseStep {
             const fs = require('fs');
             if (!fs.existsSync(requestResult.screenshotPath)) {
                 throw new Error('Fichier screenshot introuvable');
-            }
-
-            // Initialiser le détecteur d'erreurs SMS
-            const detectorAvailable = await this.smsFailureDetector.initialize();
-            if (!detectorAvailable) {
-                console.warn('⚠️ Détecteur SMS non disponible, utilisation du fallback');
             }
 
             return true;
