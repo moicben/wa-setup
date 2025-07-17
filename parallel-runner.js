@@ -13,11 +13,11 @@ const path = require('path');
 const fs = require('fs');
 
 // Configuration
-const deviceCount = parseInt(process.env.DEVICE_COUNT || '3');
+const deviceCount = parseInt(process.env.DEVICE_COUNT || '4');
 const country = process.env.COUNTRY || 'UK';
 const basePorts = process.env.DEVICE_PORTS ? 
     process.env.DEVICE_PORTS.split(',').map(p => parseInt(p.trim())) :
-    [5585, 5605, 5587, 5588, 5589];
+    [5585, 5605, 5587, 5588, 5589, 5569, 4469];
 
 // Validation
 if (deviceCount > basePorts.length) {

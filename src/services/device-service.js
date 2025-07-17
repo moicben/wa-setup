@@ -12,9 +12,9 @@ const path = require('path');
  */
 class DeviceService {
     constructor(config = {}) {
-        console.log(`[DIAG] In DeviceService constructor: passed config.deviceId = ${config.deviceId}, process.env.DEVICE_HOST = ${process.env.DEVICE_HOST}, process.env.DEVICE_PORT = ${process.env.DEVICE_PORT}`);
+        console.log(`[DIAG] In DeviceService constructor: passed config.deviceId = ${config.deviceId}, process.env.DEVICE_HOST = ${process.env.DEVICE_HOST}, process.env.DEVICE_PORTS = ${process.env.DEVICE_PORT}`);
         // Remove redundant fallback
-        // const defaultDeviceId = process.env.DEVICE_HOST || (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
+        // const defaultDeviceId = process.env.DEVICE_HOST || (process.env.DEVICE_PORTS ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
         this.config = {
             deviceId: config.deviceId,  // Assume provided
             adbPath: config.adbPath || 'adb',

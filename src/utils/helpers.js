@@ -292,7 +292,7 @@ class Validator {
     }
 
     static isValidCountryCode(country) {
-        const validCountries = ['UK', 'FR', 'US', 'DE', 'ES', 'CA', 'IT', 'ID'];
+        const validCountries = ['UK', 'FR', 'US', 'DE', 'ES', 'CA', 'IT', 'ID', 'PH'];
         return validCountries.includes(country?.toUpperCase());
     }
 
@@ -342,7 +342,7 @@ class Utils {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    static retry(fn, maxRetries = 3, delay = 1000) {
+    static retry(fn, maxRetries = 10, delay = 1000) {
         return new Promise(async (resolve, reject) => {
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
                 try {

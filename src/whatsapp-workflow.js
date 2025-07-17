@@ -26,15 +26,15 @@ class SimpleWorkflowContext {
         console.log(`[DIAG] ENV in context: DEVICE_HOST=${process.env.DEVICE_HOST}, DEVICE_PORT=${process.env.DEVICE_PORT}`);
         // Support des variables d'environnement pour multi-devices
         const defaultDeviceId = process.env.DEVICE_HOST || 
-                               (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
+                               (process.env.DEVICE_PORTS ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585');
         
         this.config = {
             country: config.country || 'UK',
             deviceId: config.deviceId || defaultDeviceId,
             smsApiKey: config.smsApiKey || process.env.SMS_ACTIVATE_API_KEY,
             verbose: config.verbose !== false,
-            maxRetries: config.maxRetries || 3,
-            retryDelay: config.retryDelay || 10000,
+            maxRetries: config.maxRetries || 30,  // Augmenter de 10 à 30
+            retryDelay: config.retryDelay || 5000,  // Réduire de 10000ms à 5000ms
             enableCloud: config.enableCloud || false,
             deviceProvider: config.deviceProvider || (config.enableCloud ? 'morelogin' : 'bluestacks'),
             ...config
@@ -221,10 +221,10 @@ class WhatsAppWorkflow {
     _validateAndNormalizeConfig(config) {
         const normalizedConfig = {
             country: config.country || 'UK',
-            deviceId: config.deviceId || process.env.DEVICE_HOST || (process.env.DEVICE_PORT ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585'),
+            deviceId: config.deviceId || process.env.DEVICE_HOST || (process.env.DEVICE_PORTS ? `127.0.0.1:${process.env.DEVICE_PORT}` : '127.0.0.1:5585'),
             smsApiKey: config.smsApiKey || process.env.SMS_ACTIVATE_API_KEY,
             verbose: config.verbose !== false,
-            maxRetries: config.maxRetries || 3,
+            maxRetries: config.maxRetries || 10,
             retryDelay: config.retryDelay || 10000,
             enableCloud: config.enableCloud || false,
             deviceProvider: config.deviceProvider || (config.enableCloud ? 'morelogin' : 'bluestacks'),
@@ -236,7 +236,7 @@ class WhatsAppWorkflow {
             throw new Error('Clé API SMS requise. Utilisez "npm run setup" pour configurer.');
         }
         
-        const validCountries = ['UK', 'FR', 'US', 'ID'];
+        const validCountries = ['UK', 'FR', 'US', 'ID', 'PH'];
         if (!validCountries.includes(normalizedConfig.country)) {
             throw new Error(`Pays non supporté: ${normalizedConfig.country}. Pays supportés: ${validCountries.join(', ')}`);
         }

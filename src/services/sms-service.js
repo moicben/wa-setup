@@ -33,7 +33,8 @@ class PhoneNumberParser {
                 'US': { code: '1', prefix: '1' },
                 'DE': { code: '49', prefix: '49' },
                 'ES': { code: '34', prefix: '34' },
-                'ID': { code: '62', prefix: '62' }
+                'ID': { code: '62', prefix: '62' },
+                'PH': { code: '63', prefix: '63' }
             };
             
             const data = countryData[country.toUpperCase()];
@@ -87,15 +88,17 @@ class SMSService {
             'ES': '56',
             'CA': '36',
             'IT': '86',
-            'ID': '6'
+            'ID': '6',
+            'PH': '4'  // Philippines
         };
         
         this.countryFallbacks = {
-            'UK': ['US', 'FR', 'DE'],
-            'US': ['FR', 'DE', 'ES'],
-            'FR': ['US', 'DE', 'ES'],
-            'DE': ['US', 'FR', 'ES'],
-            'ID': ['US', 'FR', 'DE']
+            'UK': ['PH', 'US', 'FR', 'DE', 'ES', 'IT', 'CA'],  // Ajouter ES, IT, CA
+            'US': ['FR', 'DE', 'ES', 'CA', 'IT'],  // Ajouter CA, IT
+            'FR': ['US', 'DE', 'ES', 'IT', 'UK'],  // Ajouter IT, UK
+            'DE': ['US', 'FR', 'ES', 'IT', 'UK'],  // Ajouter IT, UK
+            'ID': ['US', 'FR', 'DE', 'PH'],  // Ajouter PH
+            'PH': ['UK', 'US', 'FR', 'DE', 'ID']  // Ajouter ID
         };
         
         this.purchaseTimes = new Map();
@@ -104,6 +107,9 @@ class SMSService {
             successfulRequests: 0,
             failedRequests: 0
         };
+        
+        // Ajouter un flag pour éviter les boucles infinies
+        this.balanceCleanupAttempted = false;
     }
 
     /**
@@ -125,7 +131,54 @@ class SMSService {
     }
 
     /**
-     * Acheter un numéro de téléphone
+     * Gérer le cas de balance insuffisante
+     */
+    async handleInsufficientBalance() {
+        console.log('💸 Balance insuffisante détectée, nettoyage des numéros actifs...');
+        
+        try {
+            // Vérifier le solde actuel
+            const balanceInfo = await this.getBalance();
+            console.log(`💰 Solde actuel: $${balanceInfo.balance}`);
+            
+            // Annuler tous les numéros actifs
+            const cleanupResult = await this.cancelAllActiveNumbers({
+                maxConcurrent: 5,
+                ignoreErrors: true,
+                onlyWhatsApp: true,
+                logProgress: true
+            });
+            
+            console.log(`🧹 Nettoyage terminé: ${cleanupResult.cancelled} numéros annulés`);
+            
+            // Attendre un court délai
+            console.log('⏳ Attente de 3 secondes avant de réessayer...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Vérifier le nouveau solde
+            const newBalanceInfo = await this.getBalance();
+            console.log(`💰 Nouveau solde: $${newBalanceInfo.balance}`);
+            
+            // Réinitialiser le flag pour permettre un nouveau nettoyage si nécessaire
+            this.balanceCleanupAttempted = false;
+            
+            return {
+                success: true,
+                previousBalance: balanceInfo.balance,
+                newBalance: newBalanceInfo.balance,
+                numbersCancelled: cleanupResult.cancelled
+            };
+        } catch (error) {
+            console.error('❌ Erreur lors du nettoyage pour balance insuffisante:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Acheter un numéro de téléphone avec gestion de balance insuffisante
      */
     async buyNumber(country, options = {}) {
         const startTime = Date.now();
@@ -147,6 +200,11 @@ class SMSService {
             
             if (options.operator) {
                 params.operator = options.operator;
+            }
+            
+            // Ajouter le support du prix maximum
+            if (options.maxprice !== undefined) {
+                params.maxprice = options.maxprice;
             }
             
             const url = new URL(this.baseUrl);
@@ -180,6 +238,20 @@ class SMSService {
                     operator: options.operator || 'standard',
                     purchaseTime: purchaseTime
                 };
+            } else if (result === 'NO_BALANCE' && !options.skipBalanceCleanup) {
+                // Gérer la balance insuffisante une seule fois
+                if (!this.balanceCleanupAttempted) {
+                    this.balanceCleanupAttempted = true;
+                    
+                    const cleanupResult = await this.handleInsufficientBalance();
+                    
+                    if (cleanupResult.success) {
+                        // Réessayer l'achat après le nettoyage
+                        return await this.buyNumber(country, { ...options, skipBalanceCleanup: true });
+                    }
+                }
+                
+                throw new Error(`Balance insuffisante: ${result}`);
             } else {
                 throw new Error(`Erreur SMS-Activate: ${result}`);
             }
@@ -360,6 +432,11 @@ class SMSService {
             return await this.buyUKNumberWithPricing();
         }
         
+        // Si c'est Philippines, essayer différents opérateurs
+        if (countryCode.toUpperCase() === 'PH') {
+            return await this.buyPHNumberWithPricing();
+        }
+        
         return await this.buyNumberWithFallback(countryCode);
     }
 
@@ -416,9 +493,9 @@ class SMSService {
     }
 
     /**
-     * Acheter un numéro UK avec différents opérateurs
+     * Acheter un numéro UK avec différents opérateurs et gestion de balance
      */
-    async buyUKNumberWithPricing(maxRetries = 5) {
+    async buyUKNumberWithPricing(maxRetries = 50) {
         console.log('🇬🇧 Tentative d\'achat numéro UK avec opérateurs...');
         
         const ukOperators = [
@@ -429,35 +506,143 @@ class SMSService {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             console.log(`\n🔄 Tentative ${attempt + 1}/${maxRetries}`);
             
+            // Déterminer le niveau de prix selon le nombre de tentatives
+            let maxprice = undefined;
+            if (attempt >= 30) {
+                maxprice = 2.4;  // Prix très élevé après 30 tentatives
+                console.log('💰 Utilisation du tarif TRÈS ÉLEVÉ (maxprice=2.4)');
+            } else if (attempt >= 20) {
+                maxprice = 1.6;  // Prix élevé après 20 tentatives
+                console.log('💰 Utilisation du tarif ÉLEVÉ (maxprice=1.6)');
+            } else if (attempt >= 10) {
+                maxprice = 1;  // Prix moyen après 10 tentatives
+                console.log('💰 Utilisation du tarif MOYEN (maxprice=1)');
+            }
+            
             for (const operator of ukOperators) {
                 try {
                     console.log(`📞 Test ${operator ? `opérateur ${operator}` : 'prix standard'} pour UK...`);
                     
-                    const result = await this.buyNumber('UK', { operator });
+                    const options = { operator };
+                    if (maxprice !== undefined) {
+                        options.maxprice = maxprice;
+                    }
+                    
+                    const result = await this.buyNumber('UK', options);
                     
                     if (result.success) {
-                        console.log(`✅ Numéro UK acheté: ${result.fullNumber} (${operator || 'standard'})`);
+                        console.log(`✅ Numéro UK acheté: ${result.fullNumber} (${operator || 'standard'}${maxprice ? `, tarif niveau ${maxprice}` : ''})`);
                         return {
                             ...result,
                             operator: operator || 'standard',
-                            attempt: attempt + 1
+                            attempt: attempt + 1,
+                            priceLevel: maxprice || 0
                         };
                     }
                 } catch (error) {
-                    console.log(`⚠️ Erreur ${operator || 'standard'}: ${error.message}`);
+                    // Si c'est une erreur de balance insuffisante
+                    if (error.message.includes('NO_BALANCE') || error.message.includes('Balance insuffisante')) {
+                        console.log(`⚠️ Balance insuffisante détectée`);
+                        
+                        // Si le nettoyage a déjà été tenté, attendre avant de continuer
+                        if (this.balanceCleanupAttempted) {
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                        }
+                    } else if (error.message.includes('NO_NUMBERS')) {
+                        console.log(`⚠️ Pas de numéros disponibles pour ${operator || 'standard'}`);
+                    } else {
+                        console.log(`⚠️ Erreur ${operator || 'standard'}: ${error.message}`);
+                    }
                     continue;
                 }
             }
             
             if (attempt < maxRetries - 1) {
-                console.log('⏳ Pause 2s avant nouvelle tentative...');
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log('⏳ Pause 1s avant nouvelle tentative...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
         
         return {
             success: false,
             error: `Impossible d'acheter un numéro UK après ${maxRetries} tentatives`,
+            attempts: maxRetries
+        };
+    }
+
+    /**
+     * Acheter un numéro Philippines avec différents opérateurs et gestion de balance
+     */
+    async buyPHNumberWithPricing(maxRetries = 50) {
+        console.log('🇵🇭 Tentative d\'achat numéro Philippines avec opérateurs...');
+        
+        const phOperators = [
+            'globe', 'smart', 'sun', 'dito', null, 'any', 'virtual', 'real'
+        ];
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            console.log(`\n🔄 Tentative ${attempt + 1}/${maxRetries}`);
+            
+            // Déterminer le niveau de prix selon le nombre de tentatives
+            let maxprice = undefined;
+            if (attempt >= 30) {
+                maxprice = 3;  // Prix très élevé après 30 tentatives
+                console.log('💰 Utilisation du tarif TRÈS ÉLEVÉ (maxprice=3)');
+            } else if (attempt >= 20) {
+                maxprice = 2;  // Prix élevé après 20 tentatives
+                console.log('💰 Utilisation du tarif ÉLEVÉ (maxprice=2)');
+            } else if (attempt >= 10) {
+                maxprice = 1;  // Prix moyen après 10 tentatives
+                console.log('💰 Utilisation du tarif MOYEN (maxprice=1)');
+            }
+            
+            for (const operator of phOperators) {
+                try {
+                    console.log(`📞 Test ${operator ? `opérateur ${operator}` : 'prix standard'} pour PH...`);
+                    
+                    const options = { operator };
+                    if (maxprice !== undefined) {
+                        options.maxprice = maxprice;
+                    }
+                    
+                    const result = await this.buyNumber('PH', options);
+                    
+                    if (result.success) {
+                        console.log(`✅ Numéro PH acheté: ${result.fullNumber} (${operator || 'standard'}${maxprice ? `, tarif niveau ${maxprice}` : ''})`);
+                        return {
+                            ...result,
+                            operator: operator || 'standard',
+                            attempt: attempt + 1,
+                            priceLevel: maxprice || 0
+                        };
+                    }
+                } catch (error) {
+                    // Si c'est une erreur de balance insuffisante
+                    if (error.message.includes('NO_BALANCE') || error.message.includes('Balance insuffisante')) {
+                        console.log(`⚠️ Balance insuffisante détectée`);
+                        
+                        // Si le nettoyage a déjà été tenté, attendre avant de continuer
+                        if (this.balanceCleanupAttempted) {
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                        }
+                    } else if (error.message.includes('NO_NUMBERS')) {
+                        console.log(`⚠️ Pas de numéros disponibles pour ${operator || 'standard'}`);
+                    } else {
+                        console.log(`⚠️ Erreur ${operator || 'standard'}: ${error.message}`);
+                    }
+                    continue;
+                }
+            }
+            
+            if (attempt < maxRetries - 1) {
+                console.log('⏳ Pause 1s avant nouvelle tentative...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        
+        return {
+            success: false,
+            error: `Impossible d'acheter un numéro PH après ${maxRetries} tentatives`,
             attempts: maxRetries
         };
     }
@@ -625,6 +810,8 @@ class SMSService {
                 return cleaned.startsWith('33') ? `+${cleaned}` : `+33${cleaned}`;
             case 'US':
                 return cleaned.startsWith('1') ? `+${cleaned}` : `+1${cleaned}`;
+            case 'PH':
+                return cleaned.startsWith('63') ? `+${cleaned}` : `+63${cleaned}`;
             default:
                 return `+${cleaned}`;
         }

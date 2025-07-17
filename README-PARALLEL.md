@@ -4,15 +4,19 @@
 
 1. **BlueStacks** avec plusieurs instances actives sur des ports différents :
    - Instance 1 : `127.0.0.1:5585` (défaut)
-   - Instance 2 : `127.0.0.1:5586`
+   - Instance 2 : `127.0.0.1:5605`
    - Instance 3 : `127.0.0.1:5587`
+   - Instance 4 : `127.0.0.1:5588`
+   - Instance 5 : `127.0.0.1:5589`
+   - Instance 6 : `127.0.0.1:5569`
+   - Instance 7 : `127.0.0.1:4469`
    - etc.
 
 2. **ADB** doit pouvoir se connecter à toutes les instances
 
 ## Utilisation simple
 
-### Lancer 3 devices en parallèle (défaut)
+### Lancer 4 devices en parallèle (défaut)
 ```bash
 npm run parallel
 ```

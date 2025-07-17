@@ -161,7 +161,8 @@ async function main() {
 // Exporter les fonctions pour utilisation en tant que module
 module.exports = {
     createCloudPhoneWithProxy,
-    findAndActivateBestProxy
+    findAndActivateBestProxy,
+    main
 };
 
 // Exécuter le script principal si appelé directement

@@ -7,7 +7,7 @@
 
 require('dotenv').config();
 
-const { main: startPhoneMain } = require('./startPhone');
+const { startPhone: startPhoneMain } = require('./startPhone');
 
 /**
  * Lance WhatsApp sur un téléphone spécifique
@@ -78,7 +78,8 @@ async function main() {
 
 // Exporter pour utilisation en tant que module
 module.exports = {
-    launchWhatsAppOnPhone
+    launchWhatsApp: launchWhatsAppOnPhone,
+    main
 };
 
 // Exécuter si appelé directement

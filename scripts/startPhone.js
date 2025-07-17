@@ -406,7 +406,7 @@ async function main(phoneIdentifier = null) {
 
 // Exporter les fonctions pour utilisation en tant que module
 module.exports = {
-    main,
+    startPhone: main,
     ADBUtils,
     connectADB,
     isPhoneReadyForADB,
