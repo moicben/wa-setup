@@ -24,6 +24,9 @@ async function createNewDevice(env, config = {}) {
     case 'cloud':
       return await createCloudDevice(config);
     
+    case 'test':
+      return await createTestDevice(config);
+    
     default:
       throw new Error(`Environnement non supporté: ${env}`);
   }
@@ -42,6 +45,9 @@ async function launchExistingDevice(env, deviceId, config = {}) {
     
     case 'cloud':
       return await launchCloudDevice(deviceId, config);
+    
+    case 'test':
+      return await launchTestDevice(deviceId, config);
     
     default:
       throw new Error(`Environnement non supporté: ${env}`);
@@ -130,6 +136,28 @@ async function launchCloudDevice(deviceId, config) {
   const device = devices.get(deviceId) || { id: deviceId, type: 'cloud' };
   device.status = 'running';
   console.log(`☁️ Device Cloud lancé: ${deviceId}`);
+  return device;
+}
+
+// Implémentations Test (pour les tests)
+async function createTestDevice(config) {
+  const deviceId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const device = {
+    id: deviceId,
+    type: 'test',
+    status: 'created',
+    config
+  };
+  
+  devices.set(deviceId, device);
+  console.log(`🧪 Device Test créé: ${deviceId}`);
+  return device;
+}
+
+async function launchTestDevice(deviceId, config) {
+  const device = devices.get(deviceId) || { id: deviceId, type: 'test' };
+  device.status = 'running';
+  console.log(`🧪 Device Test lancé: ${deviceId}`);
   return device;
 }
 
