@@ -1,38 +1,12 @@
 {
   "name": "wa-setup",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "WhatsApp Account Creation & Migration - Version Simplifiée Unifiée",
   "main": "src/workflow.js",
   "scripts": {
-    "start": "node src/workflow.js create UK",
-    "create-uk": "node src/workflow.js create UK",
-    "create-fr": "node src/workflow.js create FR",
-    "create-us": "node src/workflow.js create US",
-    "create-ph": "node src/workflow.js create PH",
-    "migrate-uk": "node src/workflow.js migrate UK",
-    "migrate-fr": "node src/workflow.js migrate FR",
-    "migrate-us": "node src/workflow.js migrate US",
-    "migrate-ph": "node src/workflow.js migrate PH",
-    "morelogin": "node src/morelogin-whatsapp-workflow.js",
-    "parallel": "node parallel-runner.js",
-    "parallel-2": "DEVICE_COUNT=2 node parallel-runner.js",
-    "parallel-3": "DEVICE_COUNT=3 node parallel-runner.js",
-    "parallel-4": "DEVICE_COUNT=4 node parallel-runner.js",
-    "parallel-5": "DEVICE_COUNT=5 node parallel-runner.js",
-    "parallel-uk": "COUNTRY=UK node parallel-runner.js",
-    "parallel-fr": "COUNTRY=FR node parallel-runner.js",
-    "parallel-us": "COUNTRY=US node parallel-runner.js",
-    "parallel-ph": "COUNTRY=PH node parallel-runner.js",
+    "start": "node run.js",
     "test": "node tests/test-workflow.js",
-    "test-supabase": "node test-supabase-integration.js",
-    "test-transcript": "node test-transcript-system.js",
-    "test-parsing": "node test-phone-parsing.js",
-    "test-ocr": "node test-ocr.js",
-    "test-uk-pricing": "node test-uk-pricing.js",
-    "clean": "rm -rf screenshots/*.png temp/* logs/*",
-    "clean-deep": "rm -rf screenshots logs/transcripts/* logs/*.log temp test-profiles",
-    "whatsapp": "node scripts/launchWhatsApp.js",
-    "interactive": "node scripts/interactive-phone.js"
+    "lint": "eslint src/"
   },
   "keywords": [
     "whatsapp",
@@ -49,13 +23,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
+    "@devicefarmer/adbkit": "^3.2.3",
     "axios": "^1.6.0",
-    "dotenv": "^16.0.3",
-    "node-fetch": "^2.6.7",
-    "pg": "^8.16.3",
-    "tesseract.js": "^5.1.1",
-    "ws": "^8.14.2"
+    "puppeteer": "^22.0.0"
   },
   "engines": {
     "node": ">=14.0.0"
@@ -63,5 +33,8 @@
   "repository": {
     "type": "git",
     "url": "."
+  },
+  "devDependencies": {
+    "eslint": "^9.31.0"
   }
 }

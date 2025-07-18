@@ -42,15 +42,14 @@ class MoreLoginWorkflowContext extends SimpleWorkflowContext {
     }
 
     async _createServices() {
-        const { createSMSManager } = require('./services/sms-service');
+        const { SMSService } = require('./services/sms-service'); // Utiliser la classe directement sans create qui initialise
         const { createWhatsAppService } = require('./services/whatsapp-service');
         if (!this.services.sms) {
-            this.services.sms = await createSMSManager(this.config);
+            this.services.sms = new SMSService(this.config);
         }
         if (!this.services.whatsapp) {
             this.services.whatsapp = createWhatsAppService(this.config);
         }
-        // Ne pas créer bluestack ici - sera fait dans initializeDevice
     }
 
     async _initializeNonDeviceServices() {
@@ -69,7 +68,7 @@ class MoreLoginWorkflowContext extends SimpleWorkflowContext {
             deviceId: deviceAddress
         };
         this.services.bluestack = await createBlueStacksDevice(deviceConfig);
-        await this.services.bluestack.initialize();
+        // Supprimer la seconde initialisation, car createBlueStacksDevice appelle déjà initialize
         if (this.services.whatsapp.initialize) {
             await this.services.whatsapp.initialize(this.services.bluestack);
         }
@@ -203,10 +202,11 @@ class MoreLoginWorkflow extends WhatsAppWorkflow {
         return [
             new CreateCloudPhoneStep(),
             new StartCloudPhoneStep(),
-            new InitializeDeviceServiceStep(), // Nouvelle étape après Start
+            new InitializeDeviceServiceStep(),
             new LaunchWhatsAppStep(),
-            // Réutiliser les étapes standards de whatsapp-workflow.js
-            ...super._buildSteps()
+            // Sauter InitializeAppStep car app déjà lancée
+            // new InitializeAppStep(), // Commenté pour éviter redondance
+            ...super._buildSteps().slice(1) // Commencer après InitializeApp dans le parent
         ];
     }
 
