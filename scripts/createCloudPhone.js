@@ -6,7 +6,7 @@
  */
 
 // Charger les variables d'environnement
-require('dotenv').config();
+// dotenv supprimé
 
 // Importer les librairies communes
 const { CLOUD_PHONE_MODELS } = require('../lib/constants');

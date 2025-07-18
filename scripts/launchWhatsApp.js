@@ -5,7 +5,7 @@
  * Version simplifiée utilisant les fonctions du script startPhone.js
  */
 
-require('dotenv').config();
+// dotenv supprimé
 
 const { startPhone: startPhoneMain } = require('./startPhone');
 

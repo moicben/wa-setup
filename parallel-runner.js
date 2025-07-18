@@ -5,8 +5,7 @@
  * Chaque workflow utilise un device BlueStacks différent
  */
 
-// Charger les variables d'environnement depuis .env
-require('dotenv').config();
+// Supprimé dotenv - utiliser variables d'environnement directement
 
 const { spawn } = require('child_process');
 const path = require('path');

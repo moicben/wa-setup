@@ -5,7 +5,7 @@
  * Utilise launchWhatsApp pour préparer le téléphone puis ouvre un REPL
  */
 
-require('dotenv').config();
+// dotenv supprimé
 const repl = require('repl');
 const { launchWhatsAppOnPhone } = require('./launchWhatsApp');
 

@@ -2,7 +2,7 @@
  * Configuration centralisée du projet
  */
 
-require('dotenv').config();
+// dotenv supprimé
 
 const config = {
     // BlueStack
