@@ -8,17 +8,19 @@ const { getSMSService } = require('./services/sms-service');
 const { getWhatsAppService } = require('./services/whatsapp-service');
 const { logger } = require('./utils/logger');
 const { sleep, retry } = require('./utils/helpers');
+const { analyzeScreenshot } = require('./utils/ocr'); // Utilise votre ocr.js existant
+const { takeScreenshot } = require('./services/device-service');
 
 // Fonction principale du workflow
 async function mainWorkflow(config = {}) {
     // Configuration par défaut
     const finalConfig = {
-        env: config.env || 'morelogin',
-        country: config.country || 'UK',
-        useExistingDevice: config.useExistingDevice || false,
+        env: config.env,
+        country: config.country,
+        useExistingDevice: config.useExistingDevice,
         phonePrefix: config.phonePrefix,
         customLaunch: config.customLaunch,
-        instanceId: config.instanceId || 1,
+        instanceId: config.instanceId,
         ...config
     };
 
@@ -50,9 +52,20 @@ async function mainWorkflow(config = {}) {
             throw error;
         }
 
-        // Étape 3: Lancer WhatsApp
+        // Étape 3: Déterminer le numéro à utiliser
         try {
-            logger.info(`📱 [Instance ${finalConfig.instanceId}] Étape 3: Lancement de WhatsApp`);
+            logger.info(`📞 [Instance ${finalConfig.instanceId}] Étape 3: Détermination du numéro`);
+            phoneNumber = await getPhoneNumber(finalConfig);
+            results.steps.phoneNumber = { success: true, phoneNumber };
+        } catch (error) {
+            logger.error(`❌ [Instance ${finalConfig.instanceId}] Erreur détermination numéro:`, error.message);
+            results.errors.push({ step: 'phoneNumber', error: error.message });
+            throw error;
+        }
+
+        // Étape 4: Lancer WhatsApp
+        try {
+            logger.info(`📱 [Instance ${finalConfig.instanceId}] Étape 4: Lancement de WhatsApp`);
             await launchWhatsApp(device, finalConfig);
             results.steps.whatsapp = { success: true };
         } catch (error) {
@@ -61,9 +74,9 @@ async function mainWorkflow(config = {}) {
             throw error;
         }
 
-        // Étape 4: Gérer téléphone et SMS
+        // Étape 5: Gérer téléphone et SMS
         try {
-            logger.info(`📞 [Instance ${finalConfig.instanceId}] Étape 4: Gestion téléphone et SMS`);
+            logger.info(`📞 [Instance ${finalConfig.instanceId}] Étape 5: Gestion téléphone et SMS`);
             phoneNumber = await handlePhoneAndSMS(device, finalConfig);
             results.steps.sms = { success: true, phoneNumber };
         } catch (error) {
@@ -72,17 +85,17 @@ async function mainWorkflow(config = {}) {
             throw error;
         }
 
-        // Étape 5: Finaliser le compte
+        // Étape 6: Finaliser le compte
         try {
-            logger.info(`🏁 [Instance ${finalConfig.instanceId}] Étape 5: Finalisation du compte`);
+            logger.info(`🏁 [Instance ${finalConfig.instanceId}] Étape 6: Finalisation du compte`);
             await finalizeAccount(device, phoneNumber, finalConfig);
             results.steps.finalize = { success: true };
         } catch (error) {
             logger.error(`❌ [Instance ${finalConfig.instanceId}] Erreur finalisation:`, error.message);
             results.errors.push({ step: 'finalize', error: error.message });
             throw error;
-        }
-
+            }
+            
         // Succès complet
         const duration = Math.round((Date.now() - startTime) / 1000);
         logger.info(`✅ [Instance ${finalConfig.instanceId}] Workflow terminé avec succès en ${duration}s`);
@@ -136,11 +149,20 @@ async function prepareDevice(config) {
     
     if (config.useExistingDevice) {
         logger.info('📱 Utilisation d\'un device existant');
-        return await deviceService.launchExistingDevice(config.env);
+        return await deviceService.launchExistingDevice(config.env, null, config); // Passer la config
     } else {
         logger.info('📱 Création d\'un nouveau device');
-        return await deviceService.createNewDevice(config.env);
+        return await deviceService.createNewDevice(config.env, config); // Passer la config utilisateur
     }
+}
+
+// Déterminer le numéro à utiliser
+async function getPhoneNumber(config) {
+    const smsService = getSMSService();
+
+    const phoneNumber = config.phonePrefix || await smsService.getPhoneNumber(config.country, config);
+    logger.info(`📞 Utilisation du numéro: ${phoneNumber}`);
+    return { phoneNumber: `+${phoneNumber}`, activationId: null }; // Retourne { phoneNumber, activationId }
 }
 
 // Lancer WhatsApp
@@ -161,30 +183,65 @@ async function launchWhatsApp(device, config) {
 
 // Gérer numéro de téléphone et SMS
 async function handlePhoneAndSMS(device, config) {
-    const whatsappService = getWhatsAppService();
-    const smsService = getSMSService();
+  const whatsappService = getWhatsAppService();
+  const smsService = getSMSService();
+  const ocrEnabled = config.ocr.enabled;
+  const maxRetries = config.ocr.maxRetries;
+  const ocrOptions = {
+    acceptKeywords: config.ocr.acceptKeywords,
+    rejectKeywords: config.ocr.rejectKeywords,
+    lang: config.ocr.lang,
+    deleteAfter: true // Optionnel : Supprimer screenshot après analyse
+  };
+  
+  let attempts = 0;
+  let phoneNumber;
+  
+  while (attempts < maxRetries) {
+    attempts++;
     
-    // Déterminer le numéro à utiliser
-    const phoneNumber = config.phonePrefix || 
-                       await smsService.getPhoneNumber(config.country);
-    
-    logger.info(`📞 Utilisation du numéro: ${phoneNumber}`);
+    // Obtenir numéro - CORRECTION ICI
+    if (config.phoneNumber) {
+      phoneNumber = config.phoneNumber;
+      logger.info(`📞 [Attempt ${attempts}] Utilisation du numéro manuel: ${phoneNumber}`);
+    } else {
+      // getPhoneNumber retourne directement la string du numéro
+      phoneNumber = await smsService.getPhoneNumber(config.country, config);
+      logger.info(`📞 [Attempt ${attempts}] Numéro obtenu: ${phoneNumber}`);
+    }
     
     // Entrer le numéro
     await whatsappService.inputNumber(device, phoneNumber);
+    await sleep(2000);
     
-    // Demander le code SMS
-    const smsCode = await retry(
-        () => smsService.requestSMS(config.country, phoneNumber),
-        3
-    );
+    // OCR si activé
+    if (ocrEnabled) {
+      const screenshotFile = `ocr-check-${Date.now()}.png`;
+      try {
+        await takeScreenshot(device, screenshotFile);
+        const analysis = await analyzeScreenshot(screenshotFile, ocrOptions);
+        
+        if (!analysis.valid) {
+          logger.warn(`⚠️ [Attempt ${attempts}] Numéro invalide: ${analysis.reason}`);
+          // Note: sans activationId, on ne peut pas cancel - à implémenter si besoin
+          await whatsappService.resetApp(device);
+          continue;
+        }
+        logger.info(`✅ [Attempt ${attempts}] Numéro valide (OCR: ${analysis.reason})`);
+      } catch (ocrError) {
+        logger.warn(`⚠️ Erreur OCR, fallback sur retry: ${ocrError.message}`);
+        continue;
+      }
+    }
     
-    logger.info(`📨 Code SMS reçu: ${smsCode}`);
-    
-    // Entrer le code
+    // Attendre et entrer code
+    const smsCode = await retry(() => smsService.waitForSMS(phoneNumber), 3);
     await whatsappService.inputCode(device, smsCode);
     
     return phoneNumber;
+  }
+  
+  throw new Error(`Échec après ${maxRetries} tentatives`);
 }
 
 // Finaliser la création du compte

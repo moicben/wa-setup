@@ -25,7 +25,9 @@
   "dependencies": {
     "@devicefarmer/adbkit": "^3.2.3",
     "axios": "^1.6.0",
-    "puppeteer": "^22.0.0"
+    "dotenv": "^17.2.0",
+    "puppeteer": "^22.0.0",
+    "tesseract.js": "^6.0.1"
   },
   "engines": {
     "node": ">=14.0.0"

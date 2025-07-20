@@ -15,7 +15,7 @@ async function sleep(ms) {
  */
 async function retry(fn, attempts = 3, delay = 1000) {
   for (let i = 0; i < attempts; i++) {
-    try {
+        try {
       return await fn();
     } catch (error) {
       if (i === attempts - 1) throw error;
@@ -24,7 +24,7 @@ async function retry(fn, attempts = 3, delay = 1000) {
       await sleep(delay);
       delay *= 1.5; // Backoff exponentiel
     }
-  }
+    }
 }
 
 /**
@@ -47,8 +47,8 @@ function parsePhone(country, number) {
   const prefix = countryPrefixes[country] || '+1';
   if (!number.startsWith('+')) {
     return prefix + cleaned;
-  }
-  
+    }
+
   return '+' + cleaned;
 }
 
@@ -61,11 +61,11 @@ function errorHandler(error, context = '') {
   
   console.error(`❌ ${context}: ${message} (${code})`);
   
-  return {
+        return {
     success: false,
     error: message,
     code,
-    context
+            context
   };
 }
 
@@ -78,7 +78,7 @@ function isRetryableError(error) {
   
   return retryableCodes.includes(error.code) ||
          retryableMessages.some(msg => error.message?.toLowerCase().includes(msg));
-}
+        }
 
 // Export des fonctions
 module.exports = {

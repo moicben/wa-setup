@@ -5,6 +5,9 @@
  * Usage: node run.js [options]
  */
 
+// Charger les variables d'environnement depuis .env
+require('dotenv').config();
+
 const { mainWorkflow } = require('./src/workflow');
 const defaultConfig = require('./config');
 

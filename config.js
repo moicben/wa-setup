@@ -6,14 +6,14 @@
 module.exports = {
   // Environnement d'exécution
   // Options: 'morelogin' (cloud), 'bluestacks' (local), 'cloud' (API)
-  env: 'morelogin',
+  env: 'bluestacks',
   
   // Pays par défaut pour les numéros de téléphone
   // Options: 'FR', 'UK', 'US', 'PH', etc.
-  country: 'FR',
+  country: 'UK',
   
   // Nombre de comptes à créer en parallèle
-  parallel: 3,
+  parallel: 1,
   
   // Utiliser un device existant au lieu d'en créer un nouveau
   useExistingDevice: false,
@@ -28,17 +28,30 @@ module.exports = {
   // Configuration SMS
   sms: {
     // Clé API SMS-Activate (peut être définie via SMS_ACTIVATE_API_KEY env var)
-    apiKey: process.env.SMS_ACTIVATE_API_KEY || null,
+    apiKey: process.env.SMS_ACTIVATE_API_KEY,
     // Timeout en ms pour attendre un SMS
     timeout: 120000, // 2 minutes
     // Nombre de tentatives
-    retries: 3
+    retries: 3,
+    // Configuration retry pour obtenir un numéro
+    numberRetry: {
+      maxAttempts: 50,        // AUGMENTÉ: Plus de tentatives
+      priceChangeInterval: 3,  // RÉDUIT: Essayer UK plus souvent
+      fallbackCountries: ['UK', 'FR', 'ID', 'PH'], // UK en priorité dans fallback
+      delayBetweenRetries: 500, // RÉDUIT: Réaction plus rapide
+      priceSteps: [
+        { maxCost: 50, countries: ['UK', 'FR', 'US'] },    // UK en PREMIER
+        { maxCost: 10, countries: ['TH', 'IN', 'UA'] },     
+        { maxCost: 5, countries: ['PH', 'ID', 'VN'] },      
+        { maxCost: 20, countries: ['RU', 'PL', 'DE'] }      
+      ]
+    }
   },
   
   // Configuration des devices
   device: {
     // Ports BlueStacks par défaut
-    bluestacksPorts: [5555, 5585, 5605, 5587, 5588],
+    bluestacksPorts: [5705, 5605, 5587, 5588],
     // Configuration MoreLogin
     morelogin: {
       apiUrl: process.env.MORELOGIN_API_URL || 'http://localhost:7001',
@@ -59,8 +72,18 @@ module.exports = {
   // Options de screenshots
   screenshots: {
     // Prendre des screenshots pendant le workflow
-    enabled: false,
+    enabled: true,
     // Dossier pour sauvegarder les screenshots
     directory: './screenshots'
+  },
+
+
+  // Configuration OCR
+  ocr: {
+    enabled: true,
+    maxRetries: 3,
+    acceptKeywords: ['SMS', 'Verify by SMS', 'Continue', 'Receive code'],
+    rejectKeywords: ['can\'t receive SMS', 'invalid number', 'error', 'try again', 'blocked'],
+    lang: 'eng' // Langue pour Tesseract
   }
 }; 

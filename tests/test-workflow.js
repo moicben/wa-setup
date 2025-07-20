@@ -5,6 +5,8 @@
  */
 
 const { mainWorkflow } = require('../src/workflow');
+const { analyzeScreenshot } = require('../src/utils/ocr'); // Utilise votre ocr.js existant
+const { takeScreenshot } = require('../src/services/device-service');
 
 async function testWorkflow() {
     console.log('🧪 TEST DU WORKFLOW WHATSAPP SIMPLIFIÉ');
@@ -20,7 +22,7 @@ async function testWorkflow() {
         };
         console.log('Config:', defaultConfig);
         console.log('✅ Configuration chargée');
-
+        
         // Test 2: Mock device creation
         console.log('\n📋 Test 2: Mock device creation');
         const mockDevice = {
