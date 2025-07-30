@@ -119,7 +119,7 @@ module.exports = {
           Mickael, BIM Digital`,
     },
     query: 'télésecrétaire', // Query pour la recherche de contacts
-    count: 10 
+    count: 10
     },
   ],
 

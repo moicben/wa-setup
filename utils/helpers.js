@@ -3,6 +3,8 @@
  * Fonctions utilitaires essentielles
  */
 
+const { executeCommand } = require('./adb');
+
 /**
  * Attendre un délai en ms
  */
@@ -10,12 +12,18 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function randomSleep(min, max) {
+  const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+  //console.log(`⌛️ Délai de ${delay}ms...`);
+  return await sleep(delay);
+}
+
 /**
  * Réessayer une fonction avec backoff
  */
 async function retry(fn, attempts = 3, delay = 1000) {
   for (let i = 0; i < attempts; i++) {
-    try {
+        try {
       return await fn();
     } catch (error) {
       if (i === attempts - 1) throw error;
@@ -24,7 +32,7 @@ async function retry(fn, attempts = 3, delay = 1000) {
       await sleep(delay);
       delay *= 1.5; // Backoff exponentiel
     }
-  }
+    }
 }
 
 /**
@@ -47,8 +55,8 @@ function parsePhone(country, number) {
   const prefix = countryPrefixes[country] || '+1';
   if (!number.startsWith('+')) {
     return prefix + cleaned;
-  }
-  
+    }
+
   return '+' + cleaned;
 }
 
@@ -61,11 +69,11 @@ function errorHandler(error, context = '') {
   
   console.error(`❌ ${context}: ${message} (${code})`);
   
-  return {
+        return {
     success: false,
     error: message,
     code,
-    context
+            context
   };
 }
 
@@ -77,14 +85,73 @@ function isRetryableError(error) {
   const retryableMessages = ['timeout', 'network', 'temporarily'];
   
   return retryableCodes.includes(error.code) ||
-         retryableMessages.some(msg => error.message?.toLowerCase().includes(msg));
+  retryableMessages.some(msg => error.message?.toLowerCase().includes(msg));
 }
+
+
+// Fonction utilitaire pour tap
+async function tap(device, coords) {
+  // Si coords est un objet avec x et y
+  if (typeof coords === 'object' && coords.x !== undefined && coords.y !== undefined) {
+    await executeCommand(device, `shell input tap ${coords.x} ${coords.y}`);
+  } 
+  // Sinon si ce sont des paramètres séparés (pour compatibilité)
+  else {
+    const x = coords;
+    const y = arguments[2];
+    await executeCommand(device, `shell input tap ${x} ${y}`);
+  }
+}
+
+// Fonction utilitaire pour appuyer sur espace, tab ou enter
+async function press(device, key, repeat = 1) {
+  for (let i = 0; i < repeat; i++) {
+    await executeCommand(device, `shell input keyevent ${key}`);
+    await sleep(100);
+  }
+}
+
+
+// Fonction utilitaire pour écrire une phrase entière avec espace
+async function writeSentence(device, sentence) {
+  // Nettoyer et échapper le texte de manière robuste
+  const cleanSentence = sentence
+    .replace(/[àáâãäå]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõö]/g, 'o')
+    .replace(/[ùúûü]/g, 'u')
+    .replace(/[ç]/g, 'c')
+    .replace(/[ñ]/g, 'n')
+    .replace(/[æ]/g, 'ae')
+    .replace(/[œ]/g, 'oe')
+    .replace(/[À-ÿ]/g, '') // Supprimer les autres caractères spéciaux
+    .replace(/['"`]/g, '') // Supprimer les apostrophes et guillemets
+    .replace(/[^\w\s\-.,!?]/g, ''); // Garder seulement lettres, chiffres, espaces et ponctuation basique
+  
+  // Échapper pour le shell
+  const formattedSentence = cleanSentence.replace(/ /g, '\\ ');
+  
+  // Écrire la phrase
+  if (formattedSentence.trim().length > 0) {
+    await executeCommand(device, `shell input text "${formattedSentence}"`);
+  }
+
+  
+}
+
+
+        
 
 // Export des fonctions
 module.exports = {
   sleep,
+  randomSleep,
   retry,
   parsePhone,
   errorHandler,
-  isRetryableError
+  isRetryableError,
+  tap,
+  press,
+  writeSentence
 };

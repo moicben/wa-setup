@@ -73,8 +73,8 @@ async function sendMessage(device, phone, message, campaign_id) {
 
     // Vérifier si numéro enregistré avec OCR
     //console.log('📸 Capture de l\'écran de profil...');
-    const screenshotPath = `send-${Date.now()}.png`;
-    await takeScreenshot(device, screenshotPath);
+    const screenshotFilename = `send-${Date.now()}.png`;
+    const screenshotPath = await takeScreenshot(device, screenshotFilename);
     await sleep(2000);
     const phoneExists = await isPhoneWhatsApp(screenshotPath);
     //console.log('phoneExists', phoneExists);
