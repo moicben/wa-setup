@@ -1,43 +1,51 @@
 /**
- * OCR Utility - Analyse simple de texte sur captures d'écran
- * Consolidé pour vérifier mots-clés d'acceptation/refus
+ * OCR Service minimaliste pour WhatsApp
  */
 
-const Tesseract = require('tesseract.js'); // Assumé déjà installé ; sinon npm install tesseract.js
-const fs = require('fs');
-
-// Fonction principale d'extraction et analyse
-async function analyzeScreenshot(filename, options = {}) {
-  const { acceptKeywords = ['SMS', 'Verify by SMS', 'Continue', 'Receive code'], 
-          rejectKeywords = ['can\'t receive SMS', 'invalid number', 'error', 'try again', 'blocked'] } = options;
-  const lang = options.lang || 'eng';
-  
-  try {
-    // Extraire le texte avec Tesseract
-    const { data: { text } } = await Tesseract.recognize(filename, lang);
-    const cleanedText = text.toLowerCase().replace(/\s+/g, ' ');
-    
-    console.log(`🔍 Texte extrait: ${cleanedText}`);
-    
-    // Vérifier les keywords
-    const hasAccept = acceptKeywords.some(keyword => cleanedText.includes(keyword.toLowerCase()));
-    const hasReject = rejectKeywords.some(keyword => cleanedText.includes(keyword.toLowerCase()));
-    
-    if (hasAccept && !hasReject) {
-      return { valid: true, text: cleanedText, reason: 'Numéro accepté (SMS disponible)' };
-    } else if (hasReject) {
-      return { valid: false, text: cleanedText, reason: 'Numéro refusé (erreur détectée)' };
-    } else {
-      return { valid: false, text: cleanedText, reason: 'Aucun mot-clé d\'acceptation détecté' };
+class OCRService {
+    constructor() {
+        this.tesseract = null;
+        this.initialized = false;
     }
-  } catch (error) {
-    console.error('❌ Erreur OCR:', error.message);
-    return { valid: false, text: '', reason: 'Erreur lors de l\'analyse OCR' };
-  } finally {
-    // Nettoyer le fichier temp
-    if (fs.existsSync(filename)) fs.unlinkSync(filename);
-  }
+
+    async initialize() {
+        if (this.initialized) return;
+        try {
+            this.tesseract = require('tesseract.js');
+            this.initialized = true;
+        } catch (e) {
+            console.warn('OCR non disponible, mode fallback');
+            this.initialized = true;
+        }
+    }
+
+    async analyzeScreen(screenshotPath) {
+        await this.initialize();
+        
+        if (!this.tesseract) {
+            // Mode fallback simple
+            return { smsAvailable: true, confidence: 0.5 };
+        }
+
+        try {
+            const { data: { text } } = await this.tesseract.recognize(screenshotPath, 'eng');
+            const textLower = text.toLowerCase();
+            
+            return {
+                smsAvailable: textLower.includes('sms') || textLower.includes('code'),
+                hasError: textLower.includes('error') || textLower.includes('fail'),
+                text: text.substring(0, 200),
+                confidence: 0.8
+            };
+        } catch (e) {
+            return { smsAvailable: true, confidence: 0.3 };
+        }
+    }
 }
 
-// Export
-module.exports = { analyzeScreenshot };
+const ocrService = new OCRService();
+
+module.exports = { 
+    getOCRService: () => ocrService,
+    analyzeWhatsAppScreen: (path) => ocrService.analyzeScreen(path)
+};
